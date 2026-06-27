@@ -1,0 +1,3396 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>M!N L@B — Dealer Point Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root{
+  --ink:#0d0e14;--ink2:#13151f;--ink3:#1c1f2e;--ink4:#252840;
+  --gold:#c9931a;--gold2:#e8ae35;--gold3:#f5cc6a;--gold-bg:rgba(201,147,26,.12);--gold-glow:rgba(201,147,26,.25);
+  --red:#e03e3e;--red-bg:rgba(224,62,62,.12);
+  --green:#27ae60;--green-bg:rgba(39,174,96,.12);
+  --blue:#2980b9;--blue-bg:rgba(41,128,185,.12);
+  --purple:#8e44ad;--purple-bg:rgba(142,68,173,.12);
+  --orange:#d35400;
+  --t1:#f0f0f8;--t2:#a0a4b8;--t3:#5a5e78;
+  --border:rgba(201,147,26,.15);--border2:rgba(255,255,255,.06);
+  --radius:10px;--radius2:14px;--shadow:0 4px 24px rgba(0,0,0,.4);
+  --font:'Segoe UI',system-ui,sans-serif;
+  --sidebar:220px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--ink);color:var(--t1);font-family:var(--font);display:flex;min-width:320px;}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--ink2);}
+::-webkit-scrollbar-thumb{background:var(--ink4);border-radius:2px;}
+
+/* ══ SIDEBAR ══ */
+#sb{
+  width:var(--sidebar);min-width:var(--sidebar);background:var(--ink2);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  height:100vh;height:100dvh;overflow:hidden;transition:.3s;z-index:100;
+}
+.sb-brand{padding:20px 16px 14px;border-bottom:1px solid var(--border);}
+.sb-logo{font-size:20px;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(135deg,var(--gold),var(--gold3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  text-shadow:none;}
+.sb-tagline{font-size:9px;color:var(--t3);letter-spacing:1.5px;margin-top:3px;}
+.sb-nav{flex:1;overflow-y:auto;padding:8px 0;}
+.sb-section{font-size:9px;color:var(--t3);letter-spacing:2px;padding:14px 16px 5px;text-transform:uppercase;}
+body.csr-mode .sb-section{display:none;}
+.sb-item{
+  display:flex;align-items:center;gap:9px;padding:9px 16px;
+  cursor:pointer;font-size:12.5px;color:var(--t2);
+  transition:.15s;border-left:2px solid transparent;position:relative;
+}
+.sb-item:hover{color:var(--t1);background:var(--gold-bg);}
+.sb-item.on{color:var(--gold2);background:var(--gold-bg);border-left-color:var(--gold);}
+.sb-item .ico{font-size:14px;width:16px;text-align:center;flex-shrink:0;}
+.sb-badge{margin-left:auto;background:var(--gold);color:#1a0e00;font-size:9px;font-weight:700;padding:2px 5px;border-radius:10px;}
+.sb-footer{padding:12px 16px;border-top:1px solid var(--border);}
+.sync-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--t3);}
+.dot.live{background:var(--green);box-shadow:0 0 6px var(--green);}
+
+/* ══ MAIN ══ */
+#main{flex:1;display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;min-width:0;}
+
+/* ══ TOPBAR ══ */
+#tb{
+  background:var(--ink2);border-bottom:1px solid var(--border);
+  padding:0 24px;min-height:56px;display:flex;align-items:center;
+  justify-content:space-between;flex-shrink:0;gap:12px;
+}
+.tb-left{display:flex;align-items:center;gap:10px;min-width:0;}
+.tb-title-wrap{min-width:0;}
+.tb-title{font-size:15px;font-weight:700;}
+.tb-sub{font-size:12px;color:rgb(224, 231, 19);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tb-right{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+.menu-btn{display:none;width:36px;height:36px;justify-content:center;padding:0;font-size:18px;}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;}
+.sidebar-backdrop.show{display:block;}
+
+/* ══ CONTENT ══ */
+#content{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 24px;min-width:0;}
+
+/* ══ BUTTONS ══ */
+.btn{padding:7px 15px;border-radius:var(--radius);border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font);transition:.15s;display:inline-flex;align-items:center;gap:5px;}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a0e00;}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 4px 16px var(--gold-glow);}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--t2);}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold);}
+.btn-danger{background:var(--red-bg);border:1px solid rgba(224,62,62,.3);color:var(--red);}
+.btn-green{background:var(--green-bg);border:1px solid rgba(39,174,96,.3);color:var(--green);}
+.btn-blue{background:var(--blue-bg);border:1px solid rgba(41,128,185,.3);color:var(--blue);}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn-xs{padding:3px 7px;font-size:10px;}
+
+/* ══ CARDS ══ */
+.card{background:var(--ink2);border:1px solid var(--border);border-radius:var(--radius2);padding:18px;min-width:0;}
+.card-hd{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border2);}
+.card-title{font-size:13px;font-weight:700;color:var(--gold2);}
+
+/* ══ KPI GRID ══ */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px;}
+.kpi{background:var(--ink2);border:1px solid var(--border);border-radius:var(--radius2);padding:18px;position:relative;overflow:hidden;cursor:default;}
+.kpi::after{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;background:var(--gold-bg);border-radius:50%;}
+.kpi-ico{font-size:20px;margin-bottom:8px;}
+.kpi-label{font-size:10px;color:var(--t3);letter-spacing:.5px;text-transform:uppercase;}
+.kpi-val{font-size:24px;font-weight:800;color:var(--gold2);margin:4px 0 2px;line-height:1;}
+.kpi-sub{font-size:10px;color:var(--t3);}
+.kpi-chg{font-size:10px;margin-top:5px;}
+.kpi-up{color:var(--green);}
+.kpi-dn{color:var(--red);}
+.kpi.red .kpi-val{color:var(--red);}
+.kpi.green .kpi-val{color:var(--green);}
+.kpi.blue .kpi-val{color:var(--blue);}
+.kpi.purple .kpi-val{color:var(--purple);}
+
+/* ══ TWO/THREE COL GRID ══ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g13{display:grid;grid-template-columns:1fr 3fr;gap:14px;}
+.g31{display:grid;grid-template-columns:3fr 1fr;gap:14px;}
+
+/* ══ TABLE ══ */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:var(--ink3);color:var(--gold2);padding:9px 12px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.5px;white-space:nowrap;position:sticky;top:0;}
+td{padding:8px 12px;border-bottom:1px solid var(--border2);white-space:nowrap;}
+tr:hover td{background:var(--gold-bg);}
+.tbl-foot td{background:var(--ink3);color:var(--gold2);font-weight:700;}
+.tbl-alt tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+
+/* ══ FORM ══ */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+.fg{display:flex;flex-direction:column;gap:5px;}
+label{font-size:10px;color:var(--t3);font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
+input,select,textarea{
+  background:var(--ink3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:8px 11px;color:var(--t1);font-size:12.5px;font-family:var(--font);
+  transition:.15s;width:100%;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
+input[readonly]{opacity:.6;cursor:default;}
+select option{background:var(--ink2);}
+.inp-gold{background:rgba(201,147,26,.07);color:var(--gold2);font-weight:700;font-size:14px;}
+
+/* ══ BADGE ══ */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;}
+.bg-gold{background:var(--gold-bg);color:var(--gold2);}
+.bg-green{background:var(--green-bg);color:var(--green);}
+.bg-red{background:var(--red-bg);color:var(--red);}
+.bg-blue{background:var(--blue-bg);color:var(--blue);}
+.bg-purple{background:var(--purple-bg);color:var(--purple);}
+
+/* ══ PROGRESS ══ */
+.prog{background:var(--ink3);border-radius:4px;height:5px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:100%;border-radius:4px;transition:.5s;}
+.pf-gold{background:linear-gradient(90deg,var(--gold),var(--gold3));}
+.pf-green{background:var(--green);}
+.pf-red{background:var(--red);}
+
+/* ══ TABS ══ */
+.tabs{display:flex;gap:2px;background:var(--ink3);border-radius:var(--radius);padding:3px;margin-bottom:14px;}
+.tab{flex:1;text-align:center;padding:7px;border-radius:7px;font-size:11px;cursor:pointer;color:var(--t2);transition:.15s;font-weight:600;}
+.tab.on{background:var(--gold);color:#1a0e00;}
+
+/* ══ MODAL ══ */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);}
+.ov.open{display:flex;}
+.modal{background:var(--ink2);border:1px solid var(--border);border-radius:var(--radius2);padding:22px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto;}
+.modal-lg{max-width:760px;}
+.mhd{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.mtitle{font-size:20px;font-weight:700;color:var(--gold2);}
+.mclose{background:none;border:none;color:var(--t2);cursor:pointer;font-size:18px;padding:4px;}
+.mclose:hover{color:var(--red);}
+
+/* ══ DIVIDER ══ */
+.divider{height:1px;background:var(--border2);margin:14px 0;}
+
+/* ══ PRODUCT COLORS ══ */
+.c-black{color:#aaa;}.c-kfb{color:#5dade2;}.c-kfr{color:#e74c3c;}
+.c-dg{color:#d4ac0d;}.c-pg{color:#a569bd;}.c-fs{color:#27ae60;}.c-dam{color:#e67e22;}
+
+/* ══ CHART ══ */
+.chart-box{position:relative;height:220px;}
+.chart-sm{height:160px;}
+
+/* ══ STATUS PILLS ══ */
+.status-good{background:var(--green-bg);color:var(--green);padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.status-warn{background:rgba(243,156,18,.15);color:#f39c12;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.status-bad{background:var(--red-bg);color:var(--red);padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+
+/* ══ NOTIFICATION TOAST ══ */
+#toast{
+  position:fixed;bottom:20px;right:20px;z-index:9999;
+  background:var(--ink3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 16px;font-size:12.5px;display:none;align-items:center;gap:8px;
+  box-shadow:var(--shadow);max-width:300px;
+}
+#toast.show{display:flex;}
+#toast.ok{border-color:rgba(39,174,96,.4);}
+#toast.err{border-color:rgba(224,62,62,.4);}
+
+/* ══ AUTH / APP SHELL ══ */
+#appShell{display:none;width:100%;height:100%;min-width:0;}
+#appShell.ready{display:flex;}
+#authSection{display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;width:100%;padding:24px;background:linear-gradient(135deg,#0f172a 0%,#111827 45%,#1e3a5f 100%);overflow-y:auto;}
+.auth-card{width:min(100%,460px);background:rgba(17,24,39,.92);border:1px solid rgba(201,147,26,.25);box-shadow:0 24px 60px rgba(0,0,0,.35);border-radius:24px;padding:28px;color:#f8fafc;backdrop-filter:blur(12px);}
+.auth-title{font-size:26px;font-weight:800;margin-bottom:6px;color:#fbbf24;}
+.auth-sub{font-size:13px;color:#cbd5e1;margin-bottom:20px;}
+.auth-form{display:flex;flex-direction:column;gap:12px;}
+.auth-input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#f8fafc;font-size:14px;}
+.auth-input::placeholder{color:#94a3b8;}
+.auth-input:focus{outline:none;border-color:rgba(201,147,26,.6);box-shadow:0 0 0 3px rgba(201,147,26,.16);} 
+.auth-btn{width:100%;padding:12px 14px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a0e00;font-weight:800;cursor:pointer;transition:.2s;}
+.auth-btn:hover{transform:translateY(-1px);} 
+.auth-link{background:none;border:none;color:#fbbf24;cursor:pointer;font-weight:700;padding:0;}
+.auth-note{font-size:12px;color:#f59e0b;margin-top:8px;background:rgba(245,158,11,.12);padding:10px;border-radius:10px;border:1px solid rgba(245,158,11,.2);} 
+.auth-switch{margin-top:16px;text-align:center;font-size:13px;color:#cbd5e1;}
+.auth-msg{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;display:none;}
+.auth-msg.ok{display:block;background:rgba(39,174,96,.16);color:#bbf7d0;border:1px solid rgba(39,174,96,.25);} 
+.auth-msg.err{display:block;background:rgba(224,62,62,.16);color:#fecaca;border:1px solid rgba(224,62,62,.25);} 
+.user-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:rgba(201,147,26,.16);color:var(--gold2);font-size:11px;font-weight:700;border:1px solid rgba(201,147,26,.25);} 
+.hidden{display:none!important;}
+/* ══ PAGE ══ */
+.page{display:none;}.page.on{display:block;}
+
+/* ══ STAT MINI ══ */
+.mini-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px;}
+.mini{background:var(--ink3);border-radius:var(--radius);padding:12px;text-align:center;}
+.mini-v{font-size:18px;font-weight:800;color:var(--gold2);}
+.mini-l{font-size:9px;color:var(--t3);margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
+
+/* ══ TIMELINE ══ */
+.tl-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2);}
+.tl-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);margin-top:4px;flex-shrink:0;}
+.tl-body{flex:1;}
+.tl-main{font-size:12px;}
+.tl-meta{font-size:10px;color:var(--t3);margin-top:2px;}
+
+/* ══ SALARY SLIP ══ */
+.slip{background:#fff;color:#111;border-radius:8px;padding:24px;font-size:12px;line-height:1.6;}
+.slip h2{text-align:center;font-size:16px;margin-bottom:4px;}
+.slip-sub{text-align:center;font-size:11px;color:#666;margin-bottom:16px;}
+.slip table{width:100%;border-collapse:collapse;}
+.slip td,th{border:1px solid #ddd;padding:6px 10px;}
+.slip th{background:#f5f5f5;}
+.slip .total{background:#fff3cd;font-weight:700;}
+
+/* ══ RESPONSIVE ══ */
+@media(min-width:769px) and (max-width:1100px){
+  :root{--sidebar:190px;}
+  #tb{padding:0 16px;}
+  #content{padding:16px;}
+  .sb-item{padding:9px 12px;font-size:11.5px;}
+  .sb-section{padding-left:12px;}
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .g3{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:768px){
+  body{display:block;}
+  #appShell.ready{display:flex;}
+  #sb{position:fixed;left:calc(var(--sidebar) * -1);top:0;height:100vh;height:100dvh;box-shadow:16px 0 40px rgba(0,0,0,.35);}
+  #sb.open{left:0;}
+  #main{width:100%;height:100vh;height:100dvh;margin:0;}
+  #tb{padding:8px 12px;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .tb-left{flex:1 1 220px;}
+  .tb-right{width:100%;justify-content:flex-start;gap:6px;}
+  .tb-right .btn{padding:6px 9px;font-size:11px;}
+  .menu-btn{display:inline-flex;flex-shrink:0;}
+  #userBadge{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #tb-date{display:none;}
+  #content{padding:12px;}
+  .g2,.g3,.g13,.g31{grid-template-columns:1fr;}
+  .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  .kpi{padding:14px;}
+  .kpi-val{font-size:20px;}
+  .form-grid{grid-template-columns:1fr;}
+  .card{padding:14px;}
+  .chart-box{height:190px;}
+  .modal{padding:16px;max-height:92dvh;}
+  .add-row,.new-prod-row{grid-template-columns:1fr;}
+  .tabs{overflow-x:auto;}
+  .tab{min-width:max-content;padding:8px 10px;}
+}
+@media(max-width:480px){
+  :root{--sidebar:86vw;}
+  #authSection{padding:14px;align-items:flex-start;}
+  .auth-card{border-radius:18px;padding:20px;margin-top:12px;}
+  .auth-title{font-size:22px;}
+  .kpi-grid,.mini-stats{grid-template-columns:1fr;}
+  .tb-title{font-size:14px;}
+  .tb-sub{font-size:10px;max-width:230px;}
+  .btn{padding:7px 10px;font-size:11px;}
+  th,td{padding:7px 9px;font-size:11px;}
+  .slip{padding:14px;min-width:560px;}
+}
+
+/* ══ EMPTY STATE ══ */
+.empty{text-align:center;padding:40px;color:var(--t3);}
+.empty-ico{font-size:40px;margin-bottom:10px;}
+.empty-txt{font-size:13px;}
+
+/* ══ NUMBER INPUT ARROWS HIDE ══ */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+
+/* ══ CSR CARD ══ */
+.csr-card{background:var(--ink3);border-radius:var(--radius2);padding:16px;border:1px solid var(--border2);transition:.2s;}
+.csr-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+.csr-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold3));display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#1a0e00;margin-bottom:10px;}
+.csr-name{font-size:13px;font-weight:700;}
+.csr-role{font-size:10px;color:var(--t3);margin-bottom:8px;}
+.csr-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;}
+.csr-stat-item{background:var(--ink2);border-radius:7px;padding:6px 8px;text-align:center;}
+.csr-stat-val{font-size:14px;font-weight:700;color:var(--gold2);}
+.csr-stat-lbl{font-size:9px;color:var(--t3);}
+.product-list, .return-list {
+  margin-top: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--card2);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.product-item, .return-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--card);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+.product-item .info, .return-item .info {
+  flex: 1;
+  font-size: 13px;
+}
+.product-item .info strong { color: var(--primary); }
+.product-item .subtotal {
+  font-weight: 700;
+  color: var(--success);
+  min-width: 80px;
+  text-align: right;
+}
+.remove-btn {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.add-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: end;
+}
+.new-prod-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: end;
+}
+.empty-msg {
+  text-align: center;
+  color: var(--muted);
+  padding: 14px;
+  font-size: 13px;
+}
+
+ /* ── M!N L@b Brand Footer (with animations) ── */
+        @keyframes minColor {
+            0%     { color: #FF4500 }
+            13.33% { color: #9D4EDD }
+            20%    { color: #9D4EDD }
+            33.33% { color: #E91E63 }
+            40%    { color: #E91E63 }
+            53.33% { color: #FF8C00 }
+            60%    { color: #FF8C00 }
+            73.33% { color: #00C853 }
+            80%    { color: #00C853 }
+            93.33% { color: #FF4500 }
+            100%   { color: #FF4500 }
+        }
+        @keyframes labsColor {
+            0%     { color: #00BAFF }
+            13.33% { color: #4CAF50 }
+            20%    { color: #4CAF50 }
+            33.33% { color: #00BCD4 }
+            40%    { color: #00BCD4 }
+            53.33% { color: #2196F3 }
+            60%    { color: #2196F3 }
+            73.33% { color: #FF1744 }
+            80%    { color: #FF1744 }
+            93.33% { color: #00BAFF }
+            100%   { color: #00BAFF }
+        }
+        @keyframes bfShimmer {
+            0%   { transform: translateX(-100%) }
+            100% { transform: translateX(400%) }
+        }
+
+        .brand-footer.gf-anim{
+            display:flex;
+            flex-shrink:0;
+            height:26px;
+            background:#06080F;
+            align-items:center;
+            justify-content:center;
+            position:relative;
+            z-index:150;
+            border-top:1px solid rgba(255,255,255,.07);
+            overflow:hidden;
+            border-radius:0 0 24px 24px;
+        }
+        .brand-footer.gf-anim::before{
+            content:'';
+            position:absolute;
+            top:0;bottom:0;
+            width:40px;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.09) 50%, transparent);
+            animation: bfShimmer 4s ease-in-out infinite;
+            pointer-events:none;
+        }
+        .bf-powered{
+            font-size:10px;
+            color:#898c8c;
+            font-family:'Inter', 'Lexend', sans-serif;
+            font-weight:400;
+            letter-spacing:.4px;
+            margin-right:6px;
+            position:relative;
+            z-index:2;
+            white-space:nowrap;
+        }
+        .bf-min{
+            font-family:'Inter', 'Lexend', sans-serif;
+            font-size:11px;
+            font-weight:800;
+            letter-spacing:.6px;
+            position:relative;
+            z-index:2;
+            color:#FF4500;
+            animation:minColor 30s linear infinite;
+            white-space:nowrap;
+        }
+        .bf-sep{
+            font-size:9px;
+            color:rgba(255,255,255,.15);
+            margin:0 2px;
+            font-weight:300;
+            position:relative;
+            z-index:2;
+            white-space:nowrap;
+        }
+        .bf-labs{
+            font-family:'Inter', 'Lexend', sans-serif;
+            font-size:11px;
+            font-weight:800;
+            letter-spacing:.6px;
+            position:relative;
+            z-index:2;
+            color:#00BAFF;
+            animation: labsColor 30s linear infinite;
+            white-space:nowrap;
+        }
+
+        body.dark-mode .glass-card {
+            background: var(--glass-bg);
+            border-color: var(--glass-border);
+            color: #e2e8f0;
+        }
+        body.dark-mode .input-3d {
+            background: linear-gradient(145deg, #334155, #1e293b);
+            box-shadow: 5px 5px 10px #0f172a, -5px -5px 10px #475569;
+            color: white;
+        }
+        body.dark-mode .input-3d:focus {
+            box-shadow: inset 5px 5px 10px #0f172a, inset -5px -5px 10px #475569;
+        }
+
+</style>
+</head>
+<body>
+<div id="authSection">
+  <div class="auth-card">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="width:56px;height:56px;border-radius:16px;margin:0 auto 12px;background:rgba(201,147,26,.16);display:flex;align-items:center;justify-content:center;font-size:26px;">🚚</div>
+      <div class="auth-title">DEALER HUB</div>
+      <div class="auth-sub">BY M!N L@B</div>
+    </div>
+
+    <div id="loginForm" class="auth-form">
+      <input id="authPhone" class="auth-input" type="tel" placeholder="মোবাইল নম্বর 📱">
+      <input id="authPass" class="auth-input" type="password" placeholder="পাসওয়ার্ড 🔒">
+      <button class="auth-btn" onclick="login()">লগইন করুন →</button>
+      <div class="auth-switch">
+        নতুন? <button class="auth-link" onclick="toggleAuth('register')">নিবন্ধন করুন</button>
+        <span style="color:#64748b;margin:0 6px;">|</span>
+        <button class="auth-link" onclick="toggleAuth('forgot')">পাসওয়ার্ড ভুলে গেছেন?</button>
+      </div>
+    </div>
+
+    <div id="registerForm" class="auth-form hidden">
+      <input id="regName" class="auth-input" type="text" placeholder="পূর্ণ নাম *">
+      <input id="regPhone" class="auth-input" type="tel" placeholder="মোবাইল নম্বর *">
+      <input id="regPass" class="auth-input" type="password" placeholder="পাসওয়ার্ড *">
+      <button class="auth-btn" onclick="register()">নিবন্ধন করুন →</button>
+      <div class="auth-switch">অ্যাকাউন্ট আছে? <button class="auth-link" onclick="toggleAuth('login')">লগইন করুন</button></div>
+      <div class="auth-note">⚠️ নতুন অ্যাকাউন্টটি অ্যাডমিন অনুমোদন পেলে লগইন করতে পারবেন।</div>
+    </div>
+
+    <div id="forgotForm" class="auth-form hidden">
+      <input id="forgotPhone" class="auth-input" type="tel" placeholder="নিবন্ধিত মোবাইল নম্বর *">
+      <input id="forgotPass" class="auth-input" type="password" placeholder="নতুন পাসওয়ার্ড *">
+      <button class="auth-btn" onclick="resetPassword()">পাসওয়ার্ড রিসেট করুন →</button>
+      <div class="auth-switch">মনে পড়েছে? <button class="auth-link" onclick="toggleAuth('login')">লগইন করুন</button></div>
+      <div class="auth-note">নিরাপত্তার জন্য পুরনো পাসওয়ার্ড দেখানো হয় না; নতুন পাসওয়ার্ড সেট করুন।</div>
+    </div>
+
+    <div id="authMsg" class="auth-msg"></div>
+  </div>
+</div>
+
+<div id="appShell">
+<!-- ══ SIDEBAR ══ -->
+<aside id="sb">
+  <div class="sb-brand">
+    <div class="sb-logo">DEALER HUB</div>
+    <div class="sb-tagline">BY M!N L@B</div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-item on" onclick="nav('dashboard')"><span class="ico">📊</span>ড্যাশবোর্ড</div>
+    <div class="sb-item" onclick="nav('entry')"><span class="ico">✏️</span>দৈনিক এন্ট্রি</div>
+    <div class="sb-item" onclick="nav('csr')"><span class="ico">👥</span>CSR পারফরম্যান্স</div>
+
+
+    <div class="sb-section">রিপোর্ট</div>
+    <div class="sb-item" onclick="nav('sales')"><span class="ico">📈</span>বিক্রয় রিপোর্ট</div>
+    <div class="sb-item" onclick="nav('packet')"><span class="ico">📦</span>প্যাকেট ট্র্যাকার</div>
+    <div class="sb-item" onclick="nav('freesample')"><span class="ico">🎁</span>ফ্রি স্যাম্পল</div>
+    <div class="sb-item" onclick="nav('damage')"><span class="ico">⚠️</span>ড্যামেজ রেকর্ড</div>
+    <div class="sb-item" onclick="nav('cashback')"><span class="ico">💎</span>ক্যাশব্যাক</div>
+
+    <div class="sb-section">হিসাব</div>
+    <div class="sb-item" data-nav="expense" onclick="nav('expense')"><span class="ico">💸</span>খরচের হিসাব</div>
+    <div class="sb-item" data-nav="incentive" onclick="nav('incentive')"><span class="ico">🎯</span>ইনসেন্টিভ</div>
+
+    <div class="sb-item" onclick="nav('salary')"><span class="ico">💼</span>বেতন শিট</div>
+    <div class="sb-item" onclick="nav('advance')"><span class="ico">🏦</span>CSR অগ্রিম</div>
+    <div class="sb-item" onclick="nav('stock')"><span class="ico">🏭</span>স্টক রেকর্ড</div>
+
+    <div class="sb-section">সিস্টেম</div>
+    <div class="sb-item" onclick="nav('download')"><span class="ico">⬇️</span>ডাউনলোড</div>
+    <div class="sb-item" onclick="nav('settings')"><span class="ico">⚙️</span>সেটিংস</div>
+    <div id="adminNavSection" class="hidden">
+      <div class="sb-section">অ্যাডমিন</div>
+      <div id="sb-admin-panel" class="sb-item hidden" onclick="nav('admin')"><span class="ico">🛡️</span>অ্যাডমিন প্যানেল</div>
+      <div id="sb-user-management" class="sb-item hidden" onclick="nav('users')"><span class="ico">👤</span>ইউজার ম্যানেজমেন্ট</div>
+    </div>
+  </nav>
+  <!-- Brand Footer -->
+                <div class="brand-footer gf-anim">
+                    <span class="bf-min">M!N</span>
+                    <span class="bf-sep">&nbsp;</span>
+                    <span class="bf-labs">L@b</span>
+                </div>
+</aside>
+<div id="sidebarBackdrop" class="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+<!-- ══ MAIN ══ -->
+<main id="main">
+  <div id="tb">
+    <div class="tb-left">
+      <button id="menuBtn" class="btn btn-ghost menu-btn" onclick="toggleSidebar()">☰</button>
+      <div class="tb-title-wrap">
+        <div class="tb-title" id="tb-title">ড্যাশবোর্ড</div>
+        <div class="tb-sub" id="tb-sub">M!N L@B Dealer Hub</div>
+      </div>
+    </div>
+    <div class="tb-right">
+      <span id="userBadge" class="user-badge hidden"></span>
+      <button id="btnApprove" class="btn btn-ghost btn-sm hidden" onclick="approvePendingUsers()">✅ Approval</button>
+      <button id="btnSignOut" class="btn btn-ghost btn-sm hidden" onclick="logout()">🚪 লগআউট</button>
+      <span id="tb-date" style="font-size:11px;color:var(--t3);"></span>
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()">📤 Backup</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('imp-file').click()">📥 Restore</button>
+      <input type="file" id="imp-file" accept=".json" style="display:none" onchange="importJSON(event)">
+      <button class="btn btn-gold btn-sm" onclick="openQuickEntry()">＋ এন্ট্রি</button>
+
+    </div>
+  </div>
+
+  <div id="content">
+
+<!-- ════════════════════════════════
+     DASHBOARD
+════════════════════════════════ -->
+<div id="page-dashboard" class="page on">
+  <div class="kpi-grid" id="kpi-row"></div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">📊 মাসিক বিক্রয় (প্রোডাক্ট)</span>
+        <select id="dash-period" onchange="buildDash()" style="width:auto;font-size:11px;padding:4px 8px;">
+          <option value="today">আজ</option><option value="week">এই সপ্তাহ</option>
+          <option value="month" selected>এই মাস</option>
+        </select>
+      </div>
+      <div class="chart-box"><canvas id="ch-prod"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">👥 CSR ভিত্তিক বিক্রয়</span></div>
+      <div class="chart-box"><canvas id="ch-csr"></canvas></div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">📅 দৈনিক ট্রেন্ড (শেষ ৩০ দিন)</span></div>
+      <div class="chart-box"><canvas id="ch-trend"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">💸 আয়-ব্যয় তুলনা</span></div>
+      <div class="chart-box"><canvas id="ch-income"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">🕐 সাম্প্রতিক এন্ট্রিসমূহ</span>
+      <button class="btn btn-ghost btn-sm" onclick="nav('sales')">সব দেখুন →</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>তারিখ</th><th>CSR</th><th>রুট</th>
+        <th class="c-black">Black</th><th class="c-kfb">KFB</th><th class="c-kfr">KFR</th>
+        <th class="c-dg">D.Gold</th><th class="c-pg">PG</th>
+        <th>FS</th><th>Damage</th><th>মোট টাকা</th></tr></thead>
+      <tbody id="dash-recent"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     DAILY ENTRY
+════════════════════════════════ -->
+<div id="page-entry" class="page">
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">✏️ নতুন দৈনিক বিক্রয় এন্ট্রি</span></div>
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="fg"><label>তারিখ</label><input type="date" id="e-date"></div>
+        <div class="fg"><label>দিন</label><input type="text" id="e-day" readonly></div>
+        <div class="fg"><label>CSR নাম</label><select id="e-csr"></select></div>
+        <div class="fg"><label>রুট</label><select id="e-route"></select></div>
+      </div>
+      <div style="background:var(--ink3);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--gold2);font-weight:700;margin-bottom:10px;">📦 বিক্রয় (স্টিক/প্যাকেট)</div>
+        <div class="form-grid">
+          <div class="fg"><label class="c-black">Black</label><input type="number" id="e-black" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-kfb">KFB</label><input type="number" id="e-kfb" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-kfr">KFR</label><input type="number" id="e-kfr" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-dg">D.Gold</label><input type="number" id="e-dg" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-pg">PG / Virgin</label><input type="number" id="e-pg" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label>Return (ফেরত)</label><input type="number" id="e-ret" min="0" placeholder="0" oninput="calcEntry()"></div>
+        </div>
+      </div>
+      <div style="background:var(--ink3);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--gold2);font-weight:700;margin-bottom:10px;">🎁 ফ্রি স্যাম্পল ও ড্যামেজ</div>
+        <div class="form-grid">
+          <div class="fg"><label class="c-fs">FS - KFB</label><input type="number" id="e-fs-kfb" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-fs">FS - KFR</label><input type="number" id="e-fs-kfr" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-fs">FS - DG</label><input type="number" id="e-fs-dg" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-fs">FS - PG</label><input type="number" id="e-fs-pg" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label class="c-dam">Damage</label><input type="number" id="e-dam" min="0" placeholder="0" oninput="calcEntry()"></div>
+          <div class="fg"><label>নোট</label><input type="text" id="e-note" placeholder="ঐচ্ছিক"></div>
+        </div>
+      </div>
+      <!-- Auto-calc preview -->
+      <div style="background:var(--gold-bg);border:1px solid var(--gold);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
+          <div><div style="font-size:10px;color:var(--t3);">মোট বিক্রয় (টাকা)</div><div style="font-size:20px;font-weight:800;color:var(--gold2);" id="ep-total">৳ ০</div></div>
+          <div><div style="font-size:10px;color:var(--t3);">ইনসেন্টিভ (est.)</div><div style="font-size:20px;font-weight:800;color:var(--green);" id="ep-inc">৳ ০</div></div>
+          <div><div style="font-size:10px;color:var(--t3);">FS মূল্য</div><div style="font-size:20px;font-weight:800;color:var(--blue);" id="ep-fs">৳ ০</div></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-gold" style="flex:1" onclick="saveEntry()">💾 সেভ করুন</button>
+        <button class="btn btn-ghost" onclick="clearEntry()">🗑️ ক্লিয়ার</button>
+      </div>
+    </div>
+
+    <!-- Today's summary -->
+    <div>
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-hd"><span class="card-title">📋 আজকের সারসংক্ষেপ</span>
+          <input type="date" id="view-date" onchange="buildDailyView()" style="width:auto;font-size:11px;padding:4px 8px;">
+        </div>
+        <div id="today-kpi" class="mini-stats"></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><span class="card-title">📝 আজকের এন্ট্রি তালিকা</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>CSR</th><th>রুট</th><th>KFB</th><th>KFR</th><th>DG</th><th>PG</th><th>মোট</th><th></th></tr></thead>
+          <tbody id="daily-list"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     CSR PERFORMANCE
+════════════════════════════════ -->
+<div id="page-csr" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+    <input type="month" id="csr-month" onchange="buildCSR()" style="width:auto;padding:6px 10px;">
+    <div style="flex:1;display:flex;gap:8px;flex-wrap:wrap;" id="csr-filter-btns"></div>
+    <button class="btn btn-gold btn-sm" onclick="nav('salary')">💼 বেতন শিট →</button>
+  </div>
+  <div id="csr-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:18px;"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">📊 CSR তুলনামূলক বিক্রয়</span></div>
+    <div class="chart-box"><canvas id="ch-csr2"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <div class="card-hd"><span class="card-title">📋 CSR বিস্তারিত</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSRReport()">📥 Excel</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>CSR</th><th>Black</th><th>KFB</th><th>KFR</th><th>D.Gold</th><th>PG</th><th>মোট বিক্রয়</th><th>FS</th><th>Damage</th><th>ইনসেন্টিভ</th><th>টার্গেট %</th><th>স্ট্যাটাস</th></tr></thead>
+      <tbody id="csr-detail-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     SALES REPORT
+════════════════════════════════ -->
+<div id="page-sales" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+    <input type="month" id="sales-month" onchange="buildSales()" style="width:auto;padding:6px 10px;">
+    <select id="sales-csr-filter" onchange="buildSales()" style="width:auto;padding:6px 10px;">
+      <option value="">সব CSR</option>
+    </select>
+    <select id="sales-route-filter" onchange="buildSales()" style="width:auto;padding:6px 10px;">
+      <option value="">সব রুট</option>
+    </select>
+    <div style="flex:1;"></div>
+    <button class="btn btn-gold btn-sm" onclick="exportSalesExcel()">📥 Excel ডাউনলোড</button>
+  </div>
+  <div class="kpi-grid" id="sales-kpi" style="margin-bottom:14px;"></div>
+  <div class="tabs" id="sales-tabs">
+    <div class="tab on" onclick="salesTab('daily')">দৈনিক</div>
+    <div class="tab" onclick="salesTab('csr')">CSR ভিত্তিক</div>
+    <div class="tab" onclick="salesTab('route')">রুট ভিত্তিক</div>
+    <div class="tab" onclick="salesTab('product')">প্রোডাক্ট</div>
+  </div>
+  <div class="card" id="sales-table-card"></div>
+  <div class="g2" style="margin-top:14px;">
+    <div class="card"><div class="card-hd"><span class="card-title">📈 দৈনিক ট্রেন্ড</span></div><div class="chart-box"><canvas id="ch-st"></canvas></div></div>
+    <div class="card"><div class="card-hd"><span class="card-title">🥧 প্রোডাক্ট শেয়ার</span></div><div class="chart-box"><canvas id="ch-sp"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     PACKET TRACKER
+════════════════════════════════ -->
+<div id="page-packet" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="pac-month" onchange="buildPacket()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openPacModal()">＋ প্যাকেট এন্ট্রি</button>
+  </div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card"><div class="card-hd"><span class="card-title">📦 প্যাকেট বিতরণ সারসংক্ষেপ</span></div><div id="pac-summary"></div></div>
+    <div class="card"><div class="card-hd"><span class="card-title">📊 CSR প্যাকেট তুলনা</span></div><div class="chart-box"><canvas id="ch-pac"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">📋 প্যাকেট রেকর্ড</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>দিন</th><th>তারিখ</th><th>CSR</th><th>Non6</th><th>Pro6</th><th>Pro12</th><th>Pro 1Pac</th><th>Pro 20</th><th>Pro 50</th><th>Pro 100</th><th>DG</th><th>মোট টাকা</th><th></th></tr></thead>
+      <tbody id="pac-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     FREE SAMPLE
+════════════════════════════════ -->
+<div id="page-freesample" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="fs-month" onchange="buildFS()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openFSModal()">＋ FS এন্ট্রি</button>
+  </div>
+  <div class="mini-stats" id="fs-kpi"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">🎁 ফ্রি স্যাম্পল রেকর্ড</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportFSExcel()">📥 Excel</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>দিন</th><th>তারিখ</th><th>KFB</th><th>KFR</th><th>DG</th><th>PG</th><th>FS মূল্য (৳)</th><th></th></tr></thead>
+      <tbody id="fs-tbody"></tbody>
+      <tfoot><tr class="tbl-foot"><td colspan="2">মোট</td><td id="fs-t-kfb">—</td><td id="fs-t-kfr">—</td><td id="fs-t-dg">—</td><td id="fs-t-pg">—</td><td id="fs-t-val">—</td><td></td></tr></tfoot>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     DAMAGE
+════════════════════════════════ -->
+<div id="page-damage" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="dam-month" onchange="buildDamage()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openDamModal()">＋ ড্যামেজ এন্ট্রি</button>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">⚠️ ড্যামেজ রেকর্ড</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportDamExcel()">📥 Excel</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>দিন</th><th>তারিখ</th><th>CSR</th><th>পণ্য</th><th>পরিমাণ</th><th>মূল্য (৳)</th><th>কারণ</th><th></th></tr></thead>
+      <tbody id="dam-tbody"></tbody>
+      <tfoot><tr class="tbl-foot"><td colspan="5">মোট</td><td id="dam-total">—</td><td></td><td></td></tr></tfoot>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     CASHBACK
+════════════════════════════════ -->
+<div id="page-cashback" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="cb-month" onchange="buildCashback()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openCBModal()">＋ ক্যাশব্যাক এন্ট্রি</button>
+  </div>
+  <div class="kpi-grid" id="cb-kpi"></div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">💎 Black ক্যাশব্যাক</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>দিন</th><th>বিক্রয়</th><th>পুরাতন রেট</th><th>নতুন রেট</th><th>ক্যাশব্যাক</th></tr></thead>
+        <tbody id="cb-black-tbody"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">💎 Kings/DG ক্যাশব্যাক</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>দিন</th><th>Kings বিক্রয়</th><th>Kings CB</th><th>DG বিক্রয়</th><th>DG CB</th><th>VR CB</th></tr></thead>
+        <tbody id="cb-kings-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     EXPENSE
+════════════════════════════════ -->
+<div id="page-expense" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="exp-month" onchange="buildExpense()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openExpModal()">＋ খরচ যোগ করুন</button>
+  </div>
+  <div class="kpi-grid" id="exp-kpi"></div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">📋 খরচের বিবরণ</span>
+        <button class="btn btn-ghost btn-sm" onclick="exportExpExcel()">📥 Excel</button>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>তারিখ</th><th>ধরন</th><th>বিবরণ</th><th>পরিমাণ</th><th></th></tr></thead>
+        <tbody id="exp-tbody"></tbody>
+        <tfoot><tr class="tbl-foot"><td colspan="3">মোট খরচ</td><td id="exp-total">—</td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">📊 ক্যাটাগরি ব্রেকডাউন</span></div>
+      <div class="chart-box"><canvas id="ch-exp"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     INCENTIVE
+════════════════════════════════ -->
+<div id="page-incentive" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="inc-month" onchange="buildIncentive()" style="width:auto;padding:6px 10px;">
+  </div>
+  <div class="mini-stats" id="inc-kpi"></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-hd">
+      <span class="card-title">🎯 ইনসেন্টিভ বিস্তারিত (দৈনিক)</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportIncExcel()">📥 Excel</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>তারিখ</th>
+        <th class="c-black">Black বিক্রয়</th><th class="c-black">Ins.</th>
+        <th class="c-kfb">KFB বিক্রয়</th><th class="c-kfb">Ins.</th>
+        <th class="c-kfr">KFR বিক্রয়</th><th class="c-kfr">Ins.</th>
+        <th class="c-dg">DG বিক্রয়</th><th class="c-dg">Ins.</th>
+        <th class="c-pg">PG বিক্রয়</th><th class="c-pg">Ins.</th>
+        <th style="color:var(--gold2)">মোট ইনসেন্টিভ</th>
+      </tr></thead>
+      <tbody id="inc-tbody"></tbody>
+      <tfoot><tr class="tbl-foot" id="inc-foot"></tr></tfoot>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">📊 ইনসেন্টিভ প্রবণতা</span></div>
+    <div class="chart-box"><canvas id="ch-inc"></canvas></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     SALARY
+════════════════════════════════ -->
+<div id="page-salary" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+    <input type="month" id="sal-month" onchange="buildSalary()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openEmpModal()">＋ কর্মী যোগ করুন</button>
+    <div style="flex:1;"></div>
+    <button class="btn btn-ghost btn-sm" onclick="exportSalaryExcel()">📥 Excel ডাউনলোড</button>
+  </div>
+  <div class="mini-stats" id="sal-kpi"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">💼 বেতন শিট — <span id="sal-month-lbl"></span></span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>SL</th><th>নাম</th><th>পদবি</th><th>গ্রস বেতন</th>
+        <th>উপস্থিতি বোনাস</th><th>যাতায়াত ভাতা</th>
+        <th>বিক্রয় ইনসেন্টিভ</th><th>প্যাকেট ইনসেন্টিভ</th>
+        <th>মোট প্রদেয়</th><th>অগ্রিম কাটা</th><th>নেট প্রদেয়</th><th>অ্যাকশন</th></tr></thead>
+      <tbody id="sal-tbody"></tbody>
+      <tfoot><tr class="tbl-foot" id="sal-foot"></tr></tfoot>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     CSR ADVANCE
+════════════════════════════════ -->
+<div id="page-advance" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <button class="btn btn-gold btn-sm" onclick="openAdvModal()">＋ অগ্রিম / পেমেন্ট</button>
+    <div style="flex:1;"></div>
+    <button class="btn btn-ghost btn-sm" onclick="exportAdvExcel()">📥 Excel</button>
+  </div>
+  <div id="adv-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px;"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">📋 অগ্রিম লেনদেনের ইতিহাস</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>তারিখ</th><th>CSR</th><th>ধরন</th><th>পরিমাণ</th><th>নোট</th><th></th></tr></thead>
+      <tbody id="adv-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     STOCK
+════════════════════════════════ -->
+<div id="page-stock" class="page">
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+    <input type="month" id="stk-month" onchange="buildStock()" style="width:auto;padding:6px 10px;">
+    <button class="btn btn-gold btn-sm" onclick="openStkModal()">＋ স্টক এন্ট্রি</button>
+  </div>
+  <div class="kpi-grid" id="stk-kpi"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">🏭 স্টক রেকর্ড (Receive / Sales / Balance)</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportStkExcel()">📥 Excel</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>দিন</th><th>তারিখ</th>
+        <th>BL Rec</th><th>BL Sales</th><th>BL Bal</th>
+        <th>KFB Rec</th><th>KFB Sales</th><th>KFB Bal</th>
+        <th>KFR Rec</th><th>KFR Sales</th><th>KFR Bal</th>
+        <th>DG Rec</th><th>DG Sales</th><th>DG Bal</th>
+        <th>PG Rec</th><th>PG Sales</th><th>PG Bal</th>
+        <th></th></tr></thead>
+      <tbody id="stk-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     DOWNLOAD
+════════════════════════════════ -->
+<div id="page-download" class="page">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+    <div class="card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">📊</div>
+      <div style="font-weight:700;margin-bottom:6px;">বিক্রয় রিপোর্ট</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">দৈনিক / CSR / রুট / প্রোডাক্ট</div>
+      <input type="month" id="dl-sales" style="margin-bottom:8px;text-align:center;">
+      <button class="btn btn-gold" style="width:100%;" onclick="downloadSalesReport()">📥 ডাউনলোড</button>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">💼</div>
+      <div style="font-weight:700;margin-bottom:6px;">বেতন শিট</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">সম্পূর্ণ স্যালারি স্লিপ সহ</div>
+      <input type="month" id="dl-sal" style="margin-bottom:8px;text-align:center;">
+      <button class="btn btn-gold" style="width:100%;" onclick="downloadSalaryReport()">📥 ডাউনলোড</button>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">🎯</div>
+      <div style="font-weight:700;margin-bottom:6px;">ইনসেন্টিভ রিপোর্ট</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">প্রতিটি CSR-এর ইনসেন্টিভ</div>
+      <input type="month" id="dl-inc" style="margin-bottom:8px;text-align:center;">
+      <button class="btn btn-gold" style="width:100%;" onclick="downloadIncReport()">📥 ডাউনলোড</button>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">📋</div>
+      <div style="font-weight:700;margin-bottom:6px;">সম্পূর্ণ মাসিক রিপোর্ট</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">সব শিট একসাথে (Excel)</div>
+      <input type="month" id="dl-full" style="margin-bottom:8px;text-align:center;">
+      <button class="btn btn-gold" style="width:100%;" onclick="downloadFullReport()">📥 Full Report</button>
+    </div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">💾</div>
+      <div style="font-weight:700;margin-bottom:6px;">JSON Backup</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:12px;">সব ডেটা JSON ফাইলে সেভ</div>
+      <div style="height:12px;"></div>
+      <button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="exportJSON()">📤 Backup করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     ADMIN PANEL
+════════════════════════════════ -->
+<div id="page-admin" class="page">
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-hd"><span class="card-title">🛡️ অ্যাডমিন প্যানেল</span></div>
+    <div class="mini-stats" id="admin-kpi"></div>
+  </div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">📋 জরুরি কাজ</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn btn-gold" onclick="nav('users')">👤 ইউজার ম্যানেজমেন্ট খুলুন</button>
+        <button class="btn btn-ghost" onclick="approvePendingUsers()">✅ পেন্ডিং অ্যাপ্রুভ করুন</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">ℹ️ অ্যাডমিন নির্দেশনা</span></div>
+      <div style="font-size:12px;color:var(--t2);line-height:1.7;">
+        • নতুন ইউজার রেজিস্ট্রেশন পেন্ডিং অবস্থায় থাকবে<br>
+        • অ্যাডমিন প্যানেল থেকে প্রত্যেক ইউজারের status আপডেট করা যাবে<br>
+        • approve/reject করা হলে লগইন এক্সেস নিয়ন্ত্রিত হবে
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     USER MANAGEMENT
+════════════════════════════════ -->
+<div id="page-users" class="page">
+  <div class="card">
+    <div class="card-hd"><span class="card-title">👤 ইউজার ম্যানেজমেন্ট</span>
+      <button class="btn btn-gold btn-sm" onclick="approvePendingUsers()">✅ সব পেন্ডিং এপ্রুভ</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>নাম</th><th>মোবাইল</th><th>আইডি</th><th>রোল</th><th>স্ট্যাটাস</th><th>তৈরি করা</th><th>অ্যাকশন</th></tr></thead>
+      <tbody id="user-mgmt-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     SETTINGS
+════════════════════════════════ -->
+<div id="page-settings" class="page">
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">👥 CSR তালিকা</span></div>
+      <div id="set-csr-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input id="new-csr" placeholder="নতুন CSR নাম" style="flex:1;">
+        <button class="btn btn-gold btn-sm" onclick="addCSR()">যোগ</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">🗺️ রুট তালিকা</span></div>
+      <div id="set-route-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input id="new-route" placeholder="নতুন রুট নাম" style="flex:1;">
+        <button class="btn btn-gold btn-sm" onclick="addRoute()">যোগ</button>
+      </div>
+    </div>
+  </div>
+  <div class="g2" style="margin-bottom:14px;">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">💰 প্রোডাক্ট মূল্য (per stick/pack)</span></div>
+      <div class="form-grid">
+        <div class="fg"><label class="c-black">Black (৳/stick)</label><input type="number" id="pr-black" step="0.01"></div>
+        <div class="fg"><label class="c-kfb">KFB (৳/pack)</label><input type="number" id="pr-kfb" step="0.01"></div>
+        <div class="fg"><label class="c-kfr">KFR (৳/pack)</label><input type="number" id="pr-kfr" step="0.01"></div>
+        <div class="fg"><label class="c-dg">D.Gold (৳/pack)</label><input type="number" id="pr-dg" step="0.01"></div>
+        <div class="fg"><label class="c-pg">PG/Virgin (৳/pack)</label><input type="number" id="pr-pg" step="0.01"></div>
+      </div>
+      <button class="btn btn-gold" style="margin-top:12px;width:100%;" onclick="savePrices()">💾 মূল্য সেভ করুন</button>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">🎯 ইনসেন্টিভ রেট (%)</span></div>
+      <div class="form-grid">
+        <div class="fg"><label class="c-black">Black (%)</label><input type="number" id="ir-black" step="0.01"></div>
+        <div class="fg"><label class="c-kfb">KFB (%)</label><input type="number" id="ir-kfb" step="0.01"></div>
+        <div class="fg"><label class="c-kfr">KFR (%)</label><input type="number" id="ir-kfr" step="0.01"></div>
+        <div class="fg"><label class="c-dg">D.Gold (%)</label><input type="number" id="ir-dg" step="0.01"></div>
+        <div class="fg"><label class="c-pg">PG/Virgin (%)</label><input type="number" id="ir-pg" step="0.01"></div>
+      </div>
+      <button class="btn btn-gold" style="margin-top:12px;width:100%;" onclick="saveRates()">💾 রেট সেভ করুন</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">⚙️ টার্গেট সেটিংস</span></div>
+    <div class="form-grid">
+      <div class="fg"><label>মাসিক বিক্রয় টার্গেট (৳)</label><input type="number" id="tgt-sales"></div>
+      <div class="fg"><label>মাসিক KFB টার্গেট</label><input type="number" id="tgt-kfb"></div>
+      <div class="fg"><label>মাসিক DG টার্গেট</label><input type="number" id="tgt-dg"></div>
+      <div class="fg"><label>ডিস্ট্রিবিউটরের নাম</label><input type="text" id="set-dist-name"></div>
+      <div class="fg"><label>Territory</label><input type="text" id="set-territory"></div>
+    </div>
+    <button class="btn btn-gold" style="margin-top:12px;" onclick="saveGeneralSettings()">💾 সেভ করুন</button>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <div class="card-hd"><span class="card-title" style="color:var(--red);">⚠️ বিপজ্জনক এলাকা</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-danger" onclick="clearAllData()">🗑️ সব ডেটা মুছুন</button>
+      <button class="btn btn-blue" onclick="exportJSON()">📤 JSON Backup</button>
+    </div>
+  </div>
+</div>
+
+  </div><!-- /content -->
+</main><!-- /main -->
+</div><!-- /appShell -->
+
+<!-- ════════ MODALS ════════ -->
+
+<!-- Quick Entry -->
+<div class="ov" id="ov-quick"><div class="modal">
+  <div class="mhd"><span class="mtitle">⚡ দ্রুত বিক্রয় এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-quick')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:10px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="q-date"></div>
+    <div class="fg"><label>CSR</label><select id="q-csr"></select></div>
+    <div class="fg"><label>রুট</label><select id="q-route"></select></div>
+    <div class="fg"><label>ক্লাস্টার</label><select id="q-cluster"></select></div>
+  </div>
+
+  <!-- 🅰️ Products Section (বিক্রি) -->
+  <div class="card" style="margin-top:14px;background:var(--ink3);">
+    <h3 style="color:var(--gold2);">📦 বিক্রিত পণ্য</h3>
+    <div id="q-products-list" class="product-list">
+      <div class="empty-msg">কোনো পণ্য যোগ করা হয়নি।</div>
+    </div>
+    <div class="add-row" style="grid-template-columns: 2fr 1fr 1fr auto;">
+      <div class="fg"><label>পণ্য সিলেক্ট</label><select id="q-product-select"></select></div>
+      <div class="fg"><label>পরিমাণ</label><input type="number" id="q-product-qty" min="0" value="1"></div>
+      <div class="fg"><label>🎯 ইনসেন্টিভ (%)</label><input type="number" id="q-product-rate" min="1" max="20" step="0.1" value="1"></div>
+      <div style="align-self:end;"><button class="btn btn-gold" onclick="addProductToEntry()">＋ যোগ</button></div>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">
+      <div class="new-prod-row">
+        <div class="fg"><label>নতুন পণ্যের নাম</label><input id="q-new-product" placeholder="যেমন: New Brand"></div>
+        <div class="fg"><label>মূল্য (৳)</label><input type="number" id="q-new-product-price" min="0" placeholder="0"></div>
+        <div style="align-self:end;"><button class="btn btn-ghost" style="border-color:var(--gold)" onclick="addNewProduct()">＋ নতুন পণ্য</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🅱️ Returns Section (রিটার্ন) -->
+  <div class="card" style="margin-top:14px;background:var(--ink3);">
+    <h3 style="color:var(--red);">↩️ রিটার্ন পণ্য</h3>
+    <div id="q-returns-list" class="return-list">
+      <div class="empty-msg">কোনো রিটার্ন যোগ করা হয়নি।</div>
+    </div>
+    <div class="add-row" style="grid-template-columns: 2fr 1fr 1fr auto;">
+      <div class="fg"><label>পণ্য সিলেক্ট</label><select id="q-return-select"></select></div>
+      <div class="fg"><label>পরিমাণ</label><input type="number" id="q-return-qty" min="0" value="1"></div>
+      <div class="fg"><label>🎯 ইনসেন্টিভ (%)</label><input type="number" id="q-return-rate" min="1" max="20" step="0.1" value="1"></div>
+      <div style="align-self:end;"><button class="btn btn-ghost" style="border-color:rgba(224,62,62,.6);color:var(--red)" onclick="addReturnToEntry()">＋ রিটার্ন যোগ</button></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;background:var(--ink3);">
+    <h3 style="color:var(--blue);">📦 প্যাকেট</h3>
+    <div id="q-packet-list" class="product-list">
+      <div class="empty-msg">কোনো প্যাকেট যোগ করা হয়নি।</div>
+    </div>
+    <div class="add-row" style="grid-template-columns: 2fr 1fr auto;">
+      <div class="fg"><label>প্যাকেট টাইপ</label>
+        <select id="q-packet-type">
+          <option>Non6</option><option>Pro6</option><option>Pro12</option><option>Pro 1Pac</option><option>Pro 20</option><option>Pro 50</option><option>Pro 100</option><option>DG প্যাকেট</option>
+        </select></div>
+      <div class="fg"><label>পরিমাণ</label><input type="number" id="q-packet-qty" min="0" value="1"></div>
+      <div style="align-self:end;"><button class="btn btn-ghost" style="border-color:var(--gold);color:var(--gold2)" onclick="addPacketToEntry()">＋ প্যাকেট যোগ</button></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;background:var(--ink3);">
+    <h3 style="color:var(--green);">💎 ক্যাশব্যাক</h3>
+    <div id="q-cashback-list" class="product-list">
+      <div class="empty-msg">কোনো ক্যাশব্যাক যোগ করা হয়নি।</div>
+    </div>
+    <div class="add-row" style="grid-template-columns: 2fr 1fr auto;">
+      <div class="fg"><label>বিবরণ</label><input type="text" id="q-cashback-note" placeholder="যেমন: Black Cashback"></div>
+      <div class="fg"><label>পরিমাণ (৳)</label><input type="number" id="q-cashback-amt" min="0" value="0"></div>
+      <div style="align-self:end;"><button class="btn btn-ghost" style="border-color:var(--green);color:var(--green)" onclick="addCashbackToEntry()">＋ ক্যাশব্যাক যোগ</button></div>
+    </div>
+  </div>
+
+  <div style="background:var(--gold-bg);border-radius:var(--radius);padding:10px;text-align:center;margin:14px 0 12px;">
+    <span style="font-size:10px;color:var(--t3);">মোট বিক্রয় = </span>
+    <span style="font-size:20px;font-weight:800;color:var(--gold2);" id="q-total-sales">৳ ০</span>
+    <span style="font-size:10px;color:var(--t3);margin-left:10px;">মোট রিটার্ন = </span>
+    <span style="font-size:16px;font-weight:700;color:var(--red);" id="q-total-return">৳ ০</span>
+    <div style="margin-top:6px;font-size:10px;color:var(--t3);font-weight:700;">নেট = <span id="q-net-total" style="color:var(--green);font-size:16px;">৳ ০</span></div>
+  </div>
+
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveQEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-quick')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Expense Modal -->
+<div class="ov" id="ov-exp"><div class="modal">
+  <div class="mhd"><span class="mtitle">💸 নতুন খরচ</span><button class="mclose" onclick="closeOv('ov-exp')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="ex-date"></div>
+    <div class="fg"><label>ধরন</label>
+      <select id="ex-type">
+        <option>অফিস খরচ</option><option>বাড়িভাড়া (H.RENT)</option><option>বিদ্যুৎ বিল (E.BILL)</option>
+        <option>মোটর তেল (Motor Oil)</option><option>মোটর মেরামত</option><option>WiFi / ইন্টারনেট</option>
+        <option>ব্যাংক চার্জ (Bank VR)</option><option>Slide</option><option>LMS</option>
+        <option>কর্মী বেতন</option><option>Speakup</option><option>অন্যান্য</option>
+      </select>
+    </div>
+    <div class="fg" style="grid-column:1/-1"><label>বিবরণ</label><input type="text" id="ex-desc" placeholder="খরচের বিস্তারিত"></div>
+    <div class="fg"><label>পরিমাণ (৳)</label><input type="number" id="ex-amt" min="0"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveExpense()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-exp')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Employee Modal -->
+<div class="ov" id="ov-emp"><div class="modal">
+  <div class="mhd"><span class="mtitle" id="emp-mtitle">👤 কর্মী যোগ / সম্পাদনা</span><button class="mclose" onclick="closeOv('ov-emp')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>নাম</label><input type="text" id="em-name"></div>
+    <div class="fg"><label>পদবি</label>
+      <select id="em-desig">
+        <option>Territory Officer</option><option>Assistant Territory Officer</option>
+        <option>Territory Sales Supervisor</option><option>Zone In-Charge</option>
+        <option>Cycle Sales Representative</option>
+      </select>
+    </div>
+    <div class="fg"><label>যোগদানের তারিখ</label><input type="date" id="em-join"></div>
+    <div class="fg"><label>গ্রস বেতন (৳)</label><input type="number" id="em-gross"></div>
+    <div class="fg"><label>যাতায়াত ভাতা (৳)</label><input type="number" id="em-conv"></div>
+    <div class="fg"><label>উপস্থিতি বোনাস (৳)</label><input type="number" id="em-attn" value="1000"></div>
+    <div class="fg"><label>মাসিক অগ্রিম (৳)</label><input type="number" id="em-adv" value="0"></div>
+    <div class="fg"><label>CSR Code</label><input type="text" id="em-code" placeholder="যেমন CSR1"></div>
+    <input type="hidden" id="em-id">
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveEmployee()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-emp')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Advance Modal -->
+<div class="ov" id="ov-adv"><div class="modal">
+  <div class="mhd"><span class="mtitle">🏦 অগ্রিম / পেমেন্ট</span><button class="mclose" onclick="closeOv('ov-adv')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>CSR নাম</label><select id="adv-csr"></select></div>
+    <div class="fg"><label>তারিখ</label><input type="date" id="adv-date"></div>
+    <div class="fg"><label>ধরন</label>
+      <select id="adv-type"><option value="advance">অগ্রিম প্রদান</option><option value="payment">পেমেন্ট / কাটা</option></select>
+    </div>
+    <div class="fg"><label>পরিমাণ (৳)</label><input type="number" id="adv-amt"></div>
+    <div class="fg" style="grid-column:1/-1"><label>নোট</label><input type="text" id="adv-note"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveAdvance()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-adv')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Packet Modal -->
+<div class="ov" id="ov-pac"><div class="modal">
+  <div class="mhd"><span class="mtitle">📦 প্যাকেট এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-pac')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="pac-date"></div>
+    <div class="fg"><label>CSR</label><select id="pac-csr"></select></div>
+    <div class="fg"><label>Non6</label><input type="number" id="pac-non6" min="0" value="0"></div>
+    <div class="fg"><label>Pro6</label><input type="number" id="pac-pro6" min="0" value="0"></div>
+    <div class="fg"><label>Pro12</label><input type="number" id="pac-pro12" min="0" value="0"></div>
+    <div class="fg"><label>Pro 1Pac</label><input type="number" id="pac-1pac" min="0" value="0"></div>
+    <div class="fg"><label>Pro 20</label><input type="number" id="pac-p20" min="0" value="0"></div>
+    <div class="fg"><label>Pro 50</label><input type="number" id="pac-p50" min="0" value="0"></div>
+    <div class="fg"><label>Pro 100</label><input type="number" id="pac-p100" min="0" value="0"></div>
+    <div class="fg"><label>DG প্যাকেট</label><input type="number" id="pac-dg" min="0" value="0"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="savePacEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-pac')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Free Sample Modal -->
+<div class="ov" id="ov-fs"><div class="modal">
+  <div class="mhd"><span class="mtitle">🎁 ফ্রি স্যাম্পল এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-fs')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="fs-date"></div>
+    <div class="fg"><label class="c-kfb">KFB</label><input type="number" id="fs-kfb" min="0" value="0"></div>
+    <div class="fg"><label class="c-kfr">KFR</label><input type="number" id="fs-kfr" min="0" value="0"></div>
+    <div class="fg"><label class="c-dg">DG</label><input type="number" id="fs-dg" min="0" value="0"></div>
+    <div class="fg"><label class="c-pg">PG/VR</label><input type="number" id="fs-pg" min="0" value="0"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveFSEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-fs')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Damage Modal -->
+<div class="ov" id="ov-dam"><div class="modal">
+  <div class="mhd"><span class="mtitle">⚠️ ড্যামেজ এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-dam')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="dam-date"></div>
+    <div class="fg"><label>CSR</label><select id="dam-csr"></select></div>
+    <div class="fg"><label>পণ্য</label>
+      <select id="dam-prod"><option>Black</option><option>KFB</option><option>KFR</option><option>D.Gold</option><option>PG</option></select>
+    </div>
+    <div class="fg"><label>পরিমাণ</label><input type="number" id="dam-qty" min="0"></div>
+    <div class="fg"><label>কারণ</label><input type="text" id="dam-reason" placeholder="ড্যামেজের কারণ"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveDamEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-dam')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Cashback Modal -->
+<div class="ov" id="ov-cb"><div class="modal">
+  <div class="mhd"><span class="mtitle">💎 ক্যাশব্যাক এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-cb')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>দিন</label><input type="number" id="cb-day" min="1" max="31"></div>
+    <div class="fg"><label>Black বিক্রয়</label><input type="number" id="cb-black" min="0" value="0"></div>
+    <div class="fg"><label>Kings (KFB+KFR) বিক্রয়</label><input type="number" id="cb-kings" min="0" value="0"></div>
+    <div class="fg"><label>DG বিক্রয়</label><input type="number" id="cb-dg" min="0" value="0"></div>
+    <div class="fg"><label>Virgin বিক্রয়</label><input type="number" id="cb-vr" min="0" value="0"></div>
+    <div class="fg"><label>মাস</label><input type="month" id="cb-month2"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveCBEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-cb')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Stock Modal -->
+<div class="ov" id="ov-stk"><div class="modal">
+  <div class="mhd"><span class="mtitle">🏭 স্টক এন্ট্রি</span><button class="mclose" onclick="closeOv('ov-stk')">✕</button></div>
+  <div class="form-grid" style="margin-bottom:12px;">
+    <div class="fg"><label>তারিখ</label><input type="date" id="stk-date"></div>
+    <div class="fg"><label class="c-black">BL Receive</label><input type="number" id="stk-bl-r" min="0" value="0"></div>
+    <div class="fg"><label class="c-kfb">KFB Receive</label><input type="number" id="stk-kfb-r" min="0" value="0"></div>
+    <div class="fg"><label class="c-kfr">KFR Receive</label><input type="number" id="stk-kfr-r" min="0" value="0"></div>
+    <div class="fg"><label class="c-dg">DG Receive</label><input type="number" id="stk-dg-r" min="0" value="0"></div>
+    <div class="fg"><label class="c-pg">PG Receive</label><input type="number" id="stk-pg-r" min="0" value="0"></div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-gold" style="flex:1" onclick="saveStkEntry()">💾 সেভ করুন</button>
+    <button class="btn btn-ghost" onclick="closeOv('ov-stk')">বাতিল</button>
+  </div>
+</div></div>
+
+<!-- Toast -->
+<div id="toast"><span id="toast-ico"></span><span id="toast-msg"></span></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  CONSTANTS & DEFAULTS
+// ══════════════════════════════════════════════════════════════════
+const DEFAULT_CSRS = ['Rana','Ismail','Mostafa','Saiful','Sayod Alam','Ibrahim','Faysal'];
+const DEFAULT_ROUTES = [
+  'Bangla Bazar-PM Khali','Adorsho Gram','Ghonar Para-Boyddo Ghona',
+  'Kolatali','Shamiti Para','Dayal Para-Tatoiya','Baro Bazar',
+  'Nuniar Chora-Fishari Ghat','Time Bazar-Sowfaldondy','Labony',
+  'Najirar Tek','PT School','Khuruskul-Time Bazar','Sowfaldondy'
+];
+const DEFAULT_PRICES = {black:6.5,kfb:4.5,kfr:4.5,dg:3.814,pg:4.0};
+const DEFAULT_RATES  = {black:7.86,kfb:4.9,kfr:4.9,dg:4.9,pg:3.8};
+const DEFAULT_CLUSTERS = ['Cluster A','Cluster B','Cluster C'];
+const PAC_PRICES = {non6:6,pro6:6,pro12:12,p1pac:45,p20:20,p50:50,p100:100,dg:5.75};
+const DAYS_BN = ['রবি','সোম','মঙ্গল','বুধ','বৃহ','শুক্র','শনি'];
+const PROD_COLORS = {black:'#999',kfb:'#5dade2',kfr:'#e74c3c',dg:'#d4ac0d',pg:'#a569bd'};
+
+// ══ STATE ══
+let S = {
+  sales:[], expenses:[], employees:[], advances:[],
+  packets:[], freeSamples:[], damages:[], cashbacks:[], stocks:[],
+  settings:{
+    csrs:[...DEFAULT_CSRS], routes:[...DEFAULT_ROUTES],
+    prices:{...DEFAULT_PRICES}, rates:{...DEFAULT_RATES}, clusters:[...DEFAULT_CLUSTERS],
+    distName:'M/S Tahi Enterprise', territory:"Cox's Bazar-Sadar",
+    targets:{sales:800000, kfb:550000, dg:25000}
+  }
+};
+
+let charts = {};
+let currentPage = 'dashboard';
+let salesTabCurrent = 'daily';
+
+// ══════════════════════════════════════════════════════════════════
+//  AUTH + STORAGE
+// ══════════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyA5XlZSLYzzb4AR2ez-M6mJaZYYvpybAsU",
+  authDomain: "dealerhubbd.firebaseapp.com",
+  databaseURL: "https://dealerhubbd-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "dealerhubbd",
+  storageBucket: "dealerhubbd.firebasestorage.app",
+  messagingSenderId: "731092799788",
+  appId: "1:731092799788:web:d88c556233c3a7f09f1c89",
+  measurementId: "G-92DNBWEF9N"
+};
+const FIREBASE_DB_URL = firebaseConfig.databaseURL;
+const ADMIN_PASSWORD = 'minhaz';
+const SESSION_USER_KEY = 'virgo_current_user';
+const SESSION_USER_SNAPSHOT_KEY = 'virgo_current_user_snapshot';
+const AUTH_USERS_KEY = 'virgo_auth_users';
+const CSR_ALLOWED_PAGES = ['dashboard','entry','csr'];
+let authUsers=[];
+let currentUser=null;
+
+function getUserDataKey(userId){return 'virgo_v2_'+(userId||'guest');}
+function getStoredUsers(){return authUsers;}
+function isAdmin(){return isAdminUser(getCurrentUser());}
+function getCurrentCSRName(){
+  const user=getCurrentUser();
+  if(!user || isAdminUser(user)) return '';
+  return user.name || user.id || '';
+}
+function filterRowsForCurrentUser(rows=[]){
+  const csr=getCurrentCSRName();
+  if(!csr) return rows;
+  return rows.filter(r=>r.csr===csr);
+}
+function createDefaultState(){
+  return {
+    sales:[], expenses:[], employees:[], advances:[],
+    packets:[], freeSamples:[], damages:[], cashbacks:[], stocks:[],
+    settings:{
+      csrs:[...DEFAULT_CSRS], routes:[...DEFAULT_ROUTES],
+      prices:{...DEFAULT_PRICES}, rates:{...DEFAULT_RATES}, clusters:[...DEFAULT_CLUSTERS],
+      distName:'M/S Tahi Enterprise', territory:"Cox's Bazar-Sadar",
+      targets:{sales:800000, kfb:550000, dg:25000}
+    }
+  };
+}
+function applyStatePayload(p={}){
+  S.sales=p.sales||[];S.expenses=p.expenses||[];S.employees=p.employees||[];
+  S.advances=p.advances||[];S.packets=p.packets||[];S.freeSamples=p.freeSamples||[];
+  S.damages=p.damages||[];S.cashbacks=p.cashbacks||[];S.stocks=p.stocks||[];
+  if(p.settings){
+    S.settings={...S.settings,...p.settings};
+    S.settings.prices={...DEFAULT_PRICES,...(p.settings.prices||{})};
+    S.settings.rates={...DEFAULT_RATES,...(p.settings.rates||{})};
+    S.settings.targets={...S.settings.targets,...(p.settings.targets||{})};
+    S.settings.clusters=[...(p.settings.clusters||S.settings.clusters||DEFAULT_CLUSTERS)];
+  }
+}
+function mergeArrayById(target=[], source=[], ownerId=''){
+  const map=new Map(target.map(item=>[item.id||uid(), item]));
+  (source||[]).forEach(item=>{
+    const id=item.id||uid();
+    map.set(id,{...item,id,ownerId:item.ownerId||ownerId});
+  });
+  return [...map.values()];
+}
+function mergeUserDataStates(states=[]){
+  const merged=createDefaultState();
+  states.forEach(({ownerId,data})=>{
+    if(!data) return;
+    ['sales','expenses','employees','advances','packets','freeSamples','damages','cashbacks','stocks'].forEach(key=>{
+      merged[key]=mergeArrayById(merged[key], data[key]||[], ownerId);
+    });
+    if(data.settings){
+      const csrs=data.settings.csrs||[];
+      const routes=data.settings.routes||[];
+      merged.settings.csrs=[...new Set([...merged.settings.csrs,...csrs])];
+      merged.settings.routes=[...new Set([...merged.settings.routes,...routes])];
+      merged.settings.clusters=[...new Set([...(merged.settings.clusters||DEFAULT_CLUSTERS),...(data.settings.clusters||[])])];
+      merged.settings.prices={...merged.settings.prices,...(data.settings.prices||{})};
+      merged.settings.rates={...merged.settings.rates,...(data.settings.rates||{})};
+      merged.settings.targets={...merged.settings.targets,...(data.settings.targets||{})};
+    }
+  });
+  return merged;
+}
+function normalizeUserId(id){return String(id||'').replace(/[.#$\[\]/]/g,'_');}
+function persistAuthUsersLocally(){
+  localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(authUsers));
+}
+function generateNextCSRId(){
+  const seqNumbers = authUsers
+    .filter(u => u.role === 'user' && /^CSR\d+$/i.test(String(u.id)))
+    .map(u => parseInt(String(u.id).replace(/^CSR/i, ''), 10) || 0);
+  const next = seqNumbers.length ? Math.max(...seqNumbers) + 1 : 1;
+  return `CSR${String(next).padStart(2, '0')}`;
+}
+function mergeAuthUsers(remoteUsers=[], localUsers=[]){
+  const byId = new Map();
+  [...localUsers, ...remoteUsers].filter(Boolean).forEach(u=>{
+    const id = normalizeUserId(u.id);
+    if(!id) return;
+    byId.set(id, {...u, id});
+  });
+  authUsers = [...byId.values()];
+  persistAuthUsersLocally();
+  return authUsers;
+}
+async function saveSingleAuthUser(user){
+  const id = normalizeUserId(user?.id);
+  if(!id) throw new Error('Invalid user id');
+  const cleanUser = {...user, id};
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users/${encodeURIComponent(id)}.json`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(cleanUser)
+    });
+    if(!res.ok) throw new Error('firebase save failed');
+    return true;
+  }catch(e){
+    console.warn('Firebase user save failed',e);
+    return false;
+  }
+}
+async function deleteSingleAuthUser(userId){
+  const id = normalizeUserId(userId);
+  if(!id) throw new Error('Invalid user id');
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users/${encodeURIComponent(id)}.json`, {method:'DELETE'});
+    if(!res.ok) throw new Error('firebase delete failed');
+    return true;
+  }catch(e){
+    console.warn('Firebase user delete failed', e);
+    return false;
+  }
+}
+async function deleteUserDataFromFirebase(userId){
+  const id = normalizeUserId(userId);
+  if(!id) throw new Error('Invalid user id');
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/userData/${encodeURIComponent(id)}.json`, {method:'DELETE'});
+    if(!res.ok) throw new Error('firebase user data delete failed');
+    return true;
+  }catch(e){
+    console.warn('Firebase user data delete failed', e);
+    return false;
+  }
+}
+async function saveStoredUsers(){
+  const payload = Object.fromEntries((authUsers||[]).map(u=>[normalizeUserId(u.id),{...u,id:normalizeUserId(u.id)}]));
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users.json`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if(!res.ok) throw new Error('firebase save failed');
+  }catch(e){
+    console.warn('Firebase users save failed',e);
+  }
+  persistAuthUsersLocally();
+}
+async function loadAuthUsersFromFirebase(){
+  let localUsers=[];
+  try{localUsers=JSON.parse(localStorage.getItem(AUTH_USERS_KEY)||'[]')||[];}catch(e){localUsers=[];}
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/users.json`);
+    if(!res.ok) throw new Error('firebase load failed');
+    const data=await res.json();
+    const list = Object.entries(data||{}).map(([id,v])=>({id, ...(v||{})})).filter(Boolean);
+    if(!list.length){
+      const adminUser={id:'admin',name:'Admin',phone:'admin',password:ADMIN_PASSWORD,approved:true,role:'admin',createdAt:today()};
+      mergeAuthUsers([adminUser], localUsers);
+      await saveSingleAuthUser(adminUser);
+      return authUsers;
+    }
+    return mergeAuthUsers(list, localUsers);
+  }catch(e){
+    console.warn('Firebase auth load failed', e);
+    authUsers=localUsers;
+    return authUsers;
+  }
+}
+function getCurrentUser(){
+  const id=localStorage.getItem(SESSION_USER_KEY) || sessionStorage.getItem(SESSION_USER_KEY);
+  if(!id) return null;
+  currentUser=authUsers.find(u=>u.id===id) || null;
+  if(!currentUser){
+    try{
+      const snapshot=JSON.parse(localStorage.getItem(SESSION_USER_SNAPSHOT_KEY)||sessionStorage.getItem(SESSION_USER_SNAPSHOT_KEY)||'null');
+      if(snapshot?.id===id) currentUser=snapshot;
+    }catch(e){currentUser=null;}
+  }
+  return currentUser;
+}
+function setCurrentUser(user){
+  currentUser=user;
+  if(user){
+    localStorage.setItem(SESSION_USER_KEY, user.id);
+    sessionStorage.setItem(SESSION_USER_KEY, user.id);
+    localStorage.setItem(SESSION_USER_SNAPSHOT_KEY, JSON.stringify(user));
+    sessionStorage.setItem(SESSION_USER_SNAPSHOT_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(SESSION_USER_KEY);
+    sessionStorage.removeItem(SESSION_USER_KEY);
+    localStorage.removeItem(SESSION_USER_SNAPSHOT_KEY);
+    sessionStorage.removeItem(SESSION_USER_SNAPSHOT_KEY);
+  }
+}
+function clearSession(){
+  setCurrentUser(null);
+}
+async function restoreSession(){
+  await loadAuthUsersFromFirebase();
+  const restoredUser = getCurrentUser();
+  if(restoredUser){
+    currentUser = restoredUser;
+    return restoredUser;
+  }
+  clearSession();
+  return null;
+}
+function showAuthMsg(msg,err=false){
+  const el=document.getElementById('authMsg');
+  if(!el) return;
+  el.textContent=msg;
+  el.className='auth-msg '+(err?'err':'ok');
+}
+function toggleAuth(mode){
+  document.getElementById('loginForm').classList.toggle('hidden', mode!=='login');
+  document.getElementById('registerForm').classList.toggle('hidden', mode!=='register');
+  document.getElementById('forgotForm').classList.toggle('hidden', mode!=='forgot');
+  showAuthMsg('');
+}
+function isAdminUser(user){
+  if(!user) return false;
+  const normalizedPhone = String(user.phone || '').trim().toLowerCase();
+  const normalizedId = String(user.id || '').trim().toLowerCase();
+  const normalizedName = String(user.name || '').trim().toLowerCase();
+  return normalizedPhone === 'admin' || normalizedId === 'admin' || normalizedName === 'admin';
+}
+async function login(){
+  const phone=document.getElementById('authPhone').value.trim();
+  const pass=document.getElementById('authPass').value;
+  if(!phone||!pass){showAuthMsg('মোবাইল ও পাসওয়ার্ড দিন',true);return;}
+  if(!authUsers.length){await loadAuthUsersFromFirebase();}
+  let u=authUsers.find(x=>x.phone===phone && x.password===pass);
+  if(!u && phone==='admin' && pass===ADMIN_PASSWORD){
+    const existing=authUsers.find(x=>isAdminUser(x));
+    if(existing){u={...existing, phone:'admin', password:ADMIN_PASSWORD, approved:true, role:'admin', id:existing.id||'admin'};}
+    else{u={id:'admin',name:'Admin',phone:'admin',password:ADMIN_PASSWORD,approved:true,role:'admin',createdAt:today()}; authUsers.push(u);} 
+    await saveStoredUsers();
+  }
+  if(!u){showAuthMsg('ইউজার পাওয়া যায়নি',true);return;}
+  if(!u.approved){showAuthMsg('অ্যাডমিন অনুমোদন অপেক্ষায় আছে',true);return;}
+  setCurrentUser(u);
+  showApp();
+  await init();
+  renderAuthHeader();
+  showAuthMsg('');
+}
+async function register(){
+  const name=document.getElementById('regName').value.trim();
+  const phone=document.getElementById('regPhone').value.trim();
+  const pass=document.getElementById('regPass').value;
+  if(!name||!phone||!pass){showAuthMsg('সব ঘর পূরণ করুন',true);return;}
+  await loadAuthUsersFromFirebase();
+  if(authUsers.some(u=>u.phone===phone)){showAuthMsg('এই ফোন নম্বর আগে থেকেই আছে',true);return;}
+  const user={id:generateNextCSRId(),name,phone,password:pass,approved:false,role:'user',status:'pending',createdAt:today()};
+  authUsers.push(user);
+  persistAuthUsersLocally();
+  const synced = await saveSingleAuthUser(user);
+  if(!synced){showAuthMsg('নিবন্ধন লোকালি সেভ হয়েছে, কিন্তু Firebase sync হয়নি। ইন্টারনেট/Database Rules চেক করুন।',true);return;}
+  toggleAuth('login');
+  showAuthMsg(`নিবন্ধন সফল। আপনার ইউজার আইডি ${user.id}. অ্যাডমিন অনুমোদন পেলে লগইন করতে পারবেন`);
+}
+async function resetPassword(){
+  const phone=document.getElementById('forgotPhone').value.trim();
+  const pass=document.getElementById('forgotPass').value;
+  if(!phone||!pass){showAuthMsg('মোবাইল নম্বর ও নতুন পাসওয়ার্ড দিন',true);return;}
+  if(pass.length<4){showAuthMsg('পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের দিন',true);return;}
+  await loadAuthUsersFromFirebase();
+  const target=authUsers.find(u=>u.phone===phone);
+  if(!target){showAuthMsg('এই মোবাইল নম্বরের কোনো ইউজার পাওয়া যায়নি',true);return;}
+  target.password=pass;
+  target.passwordUpdatedAt=new Date().toISOString();
+  persistAuthUsersLocally();
+  const synced=await saveSingleAuthUser(target);
+  if(!synced){showAuthMsg('পাসওয়ার্ড লোকালি আপডেট হয়েছে, কিন্তু Firebase sync হয়নি।',true);return;}
+  toggleAuth('login');
+  document.getElementById('authPhone').value=phone;
+  document.getElementById('authPass').value='';
+  showAuthMsg('পাসওয়ার্ড রিসেট হয়েছে। নতুন পাসওয়ার্ড দিয়ে লগইন করুন');
+}
+function logout(){
+  clearSession();
+  showAuth();
+  showAuthMsg('সফলভাবে লগআউট হয়েছে');
+}
+async function approvePendingUsers(){
+  const password=prompt('Admin password');
+  if(password!==ADMIN_PASSWORD){showAuthMsg('সঠিক admin password দিন',true);return;}
+  const pending=authUsers.filter(u=>!u.approved);
+  if(!pending.length){showAuthMsg('কোনো pending user নেই');return;}
+  pending.forEach(u=>{u.approved=true; u.status='approved';});
+  await saveStoredUsers();
+  renderAuthHeader();
+  buildUserManagement();
+  buildAdminPanel();
+  showAuthMsg('Pending applications approved');
+}
+async function rejectUser(userId){
+  const target=authUsers.find(u=>u.id===userId);
+  if(!target){return;}
+  target.approved=false; target.status='rejected';
+  await saveStoredUsers();
+  buildUserManagement();
+  buildAdminPanel();
+  showAuthMsg('User rejected');
+}
+async function deleteUser(userId){
+  const target=authUsers.find(u=>u.id===userId);
+  if(!target){return;}
+  if(isAdminUser(target)){showAuthMsg('Admin user delete করা যাবে না',true);return;}
+  if(!confirm(`${target.name||target.phone||target.id} ইউজারটি সম্পূর্ণ ডিলিট করবেন?`)) return;
+  authUsers=authUsers.filter(u=>u.id!==userId);
+  persistAuthUsersLocally();
+  localStorage.removeItem(getUserDataKey(userId));
+  const authSynced=await deleteSingleAuthUser(userId);
+  const dataSynced=await deleteUserDataFromFirebase(userId);
+  const synced=authSynced && dataSynced;
+  if(!synced){showAuthMsg('লোকাল থেকে ডিলিট হয়েছে, কিন্তু Firebase delete sync হয়নি।',true);}
+  buildUserManagement();
+  buildAdminPanel();
+  renderAuthHeader();
+  if(synced) showAuthMsg('User এবং তার data permanently deleted');
+}
+function showAuth(){
+  document.getElementById('authSection').style.display='flex';
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('appShell').classList.remove('ready');
+}
+function showApp(){
+  document.getElementById('authSection').style.display='none';
+  document.getElementById('appShell').style.display='flex';
+  document.getElementById('appShell').classList.add('ready');
+}
+function renderAuthHeader(){
+  const badge=document.getElementById('userBadge');
+  const signOut=document.getElementById('btnSignOut');
+  const approve=document.getElementById('btnApprove');
+  const adminNavSection=document.getElementById('adminNavSection');
+  const adminNavItem=document.getElementById('sb-admin-panel');
+  const userNavItem=document.getElementById('sb-user-management');
+  const user=getCurrentUser();
+  if(!user){
+    document.body.classList.remove('csr-mode');
+    if(badge) badge.classList.add('hidden');
+    if(signOut) signOut.classList.add('hidden');
+    if(approve) approve.classList.add('hidden');
+    if(adminNavSection) adminNavSection.classList.add('hidden');
+    if(adminNavItem) adminNavItem.classList.add('hidden');
+    if(userNavItem) userNavItem.classList.add('hidden');
+    return;
+  }
+  if(badge){badge.textContent=`👤 ${user.name} (${user.phone})`;badge.classList.remove('hidden');}
+  if(signOut) signOut.classList.remove('hidden');
+  const pending=authUsers.filter(x=>!x.approved).length;
+  const isAdmin = isAdminUser(user);
+  document.body.classList.toggle('csr-mode', !isAdmin);
+  if(approve){ approve.classList.toggle('hidden', !isAdmin || pending===0); }
+  if(adminNavSection) adminNavSection.classList.toggle('hidden', !isAdmin);
+  if(adminNavItem) adminNavItem.classList.toggle('hidden', !isAdmin);
+  if(userNavItem) userNavItem.classList.toggle('hidden', !isAdmin);
+  document.querySelectorAll('.sb-item').forEach(item=>{
+    const onclick=item.getAttribute('onclick')||'';
+    const match=onclick.match(/nav\(['"]([^'"]+)['"]\)/);
+    const page=match?.[1] || item.dataset?.nav;
+    if(page && !isAdmin && !CSR_ALLOWED_PAGES.includes(page)) item.classList.add('hidden');
+    else if(page && CSR_ALLOWED_PAGES.includes(page)) item.classList.remove('hidden');
+  });
+  if(!isAdmin && (currentPage==='admin' || currentPage==='users')) nav('dashboard');
+}
+
+async function saveUserDataToFirebase(){
+  const user = getCurrentUser();
+  if(!user) throw new Error('No user');
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/userData/${encodeURIComponent(user.id)}.json`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(S)
+    });
+    if(!res.ok) throw new Error('firebase save failed');
+    return true;
+  }catch(e){
+    console.warn('Firebase user data save failed', e);
+    return false;
+  }
+}
+
+async function loadUserDataFromFirebase(){
+  const user = getCurrentUser();
+  if(!user) return null;
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/userData/${encodeURIComponent(user.id)}.json`);
+    if(!res.ok) throw new Error('firebase load failed');
+    return await res.json();
+  }catch(e){
+    console.warn('Firebase user data load failed', e);
+    return null;
+  }
+}
+
+async function loadAllUserDataFromFirebase(){
+  try{
+    const res = await fetch(`${FIREBASE_DB_URL}/userData.json`);
+    if(!res.ok) throw new Error('firebase all user data load failed');
+    const data=await res.json();
+    return Object.entries(data||{}).map(([ownerId,value])=>({ownerId,data:value||{}}));
+  }catch(e){
+    console.warn('Firebase all user data load failed', e);
+    return [];
+  }
+}
+
+async function save(){
+  try{ const user=getCurrentUser(); if(!user){throw new Error('No user');}
+    localStorage.setItem(getUserDataKey(user.id),JSON.stringify(S));
+    const synced = await saveUserDataToFirebase();
+    document.getElementById('syn-txt').textContent=synced?'Firebase sync হয়েছে':'লোকালি সেভ হয়েছে';
+    document.getElementById('syn-dot').classList.toggle('live', synced);
+    document.getElementById('syn-time').textContent=new Date().toLocaleTimeString('bn-BD');
+    setTimeout(()=>{ document.getElementById('syn-dot').classList.remove('live');
+      document.getElementById('syn-txt').textContent=synced?'Firebase Ready':'লোকাল স্টোরেজ'; },2000);
+  }catch(e){toast('❌ সেভ ব্যর্থ',true);}
+}
+async function load(){
+  try{
+    const user=getCurrentUser();
+    if(!user){
+      S=createDefaultState();
+      return;
+    }
+    S=createDefaultState();
+    if(isAdminUser(user)){
+      const allData=await loadAllUserDataFromFirebase();
+      if(allData.length){
+        S=mergeUserDataStates(allData);
+        localStorage.setItem(getUserDataKey(user.id),JSON.stringify(S));
+        return;
+      }
+    }
+    const firebaseData = await loadUserDataFromFirebase();
+    const d = firebaseData || localStorage.getItem(getUserDataKey(user.id));
+    if(d){
+      const p = typeof d === 'string' ? JSON.parse(d) : d;
+      applyStatePayload(p);
+    }
+  }catch(e){console.warn('Load failed',e);}
+}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function fmtTk(n){return '৳'+Math.round(n||0).toLocaleString('bn-BD');}
+function fmtN(n){return Math.round(n||0).toLocaleString('bn-BD');}
+function today(){return new Date().toISOString().slice(0,10);}
+function thisMonth(){return new Date().toISOString().slice(0,7);}
+function dayName(d){return DAYS_BN[new Date(d).getDay()];}
+
+// ══════════════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════════════
+function toast(msg,err=false){
+  const el=document.getElementById('toast');
+  el.className='show '+(err?'err':'ok');
+  document.getElementById('toast-ico').textContent=err?'❌':'✅';
+  document.getElementById('toast-msg').textContent=msg;
+  setTimeout(()=>el.className='',2500);
+}
+
+function closeSidebar(){
+  document.getElementById('sb')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.classList.remove('show');
+}
+function toggleSidebar(){
+  const sb=document.getElementById('sb');
+  const backdrop=document.getElementById('sidebarBackdrop');
+  if(!sb || !backdrop) return;
+  const open=!sb.classList.contains('open');
+  sb.classList.toggle('open', open);
+  backdrop.classList.toggle('show', open);
+}
+window.addEventListener('resize', ()=>{
+  if(window.innerWidth>768) closeSidebar();
+});
+
+function buildAdminPanel(){
+  const total=authUsers.length;
+  const approved=authUsers.filter(u=>u.approved).length;
+  const pending=authUsers.filter(u=>!u.approved).length;
+  const admins=authUsers.filter(isAdminUser).length;
+  document.getElementById('admin-kpi').innerHTML=`
+    <div class="mini"><div class="mini-v">${total}</div><div class="mini-l">মোট ইউজার</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--green);">${approved}</div><div class="mini-l">এপ্রুভড</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--orange);">${pending}</div><div class="mini-l">পেন্ডিং</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--blue);">${admins}</div><div class="mini-l">অ্যাডমিন</div></div>`;
+}
+function buildUserManagement(){
+  const tbody=document.getElementById('user-mgmt-tbody');
+  if(!tbody) return;
+  tbody.innerHTML=authUsers.map(u=>{
+    const badgeClass = u.approved ? 'bg-green' : ((u.status||'pending') === 'rejected' ? 'bg-red' : 'bg-purple');
+    const badgeText = u.approved ? 'Approved' : ((u.status||'pending') === 'rejected' ? 'Rejected' : 'Pending');
+    const adminLocked = isAdminUser(u);
+    const approveBtn = u.approved ? '<button class="btn btn-ghost btn-xs" disabled>Approved</button>' : `<button class="btn btn-green btn-xs" onclick="approveSingleUser('${u.id}')">Approve</button>`;
+    const actionButtons = adminLocked
+      ? '<span class="badge bg-blue">Protected</span>'
+      : `${approveBtn}
+        <button class="btn btn-danger btn-xs" onclick="rejectUser('${u.id}')">Reject</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteUser('${u.id}')">Delete</button>`;
+    return `<tr>
+      <td>${u.name||'—'}</td>
+      <td>${u.phone||'—'}</td>
+      <td>${u.id||'—'}</td>
+      <td><span class="badge ${isAdminUser(u)?'bg-blue':'bg-gold'}">${isAdminUser(u)?'Admin':'User'}</span></td>
+      <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+      <td>${u.createdAt||'—'}</td>
+      <td>
+        ${actionButtons}
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">কোনো ইউজার নেই</td></tr>';
+}
+async function approveSingleUser(userId){
+  const target=authUsers.find(u=>u.id===userId);
+  if(!target){return;}
+  target.approved=true; target.status='approved';
+  await saveStoredUsers();
+  buildUserManagement();
+  buildAdminPanel();
+  renderAuthHeader();
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+const pageMap={
+  dashboard:'ড্যাশবোর্ড',entry:'দৈনিক বিক্রয় এন্ট্রি',csr:'CSR পারফরম্যান্স',
+  sales:'বিক্রয় রিপোর্ট',packet:'প্যাকেট ট্র্যাকার',freesample:'ফ্রি স্যাম্পল',
+  damage:'ড্যামেজ রেকর্ড',cashback:'ক্যাশব্যাক রিপোর্ট',expense:'খরচের হিসাব',
+  incentive:'ইনসেন্টিভ রিপোর্ট',salary:'বেতন শিট',advance:'CSR অগ্রিম',
+  stock:'স্টক রেকর্ড',download:'ডাউনলোড সেন্টার',settings:'সেটিংস',admin:'অ্যাডমিন প্যানেল',users:'ইউজার ম্যানেজমেন্ট'
+};
+function nav(p){
+  const adminOnlyPages = ['admin','users'];
+  if(adminOnlyPages.includes(p) && !isAdminUser(getCurrentUser())){
+    toast('এই পেজটি শুধু অ্যাডমিনের জন্য', true);
+    p='dashboard';
+  }
+  if(!isAdminUser(getCurrentUser()) && !CSR_ALLOWED_PAGES.includes(p)){
+    toast('এই অপশনটি শুধু অ্যাডমিনের জন্য', true);
+    p='dashboard';
+  }
+  currentPage=p;
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.sb-item').forEach(x=>x.classList.remove('on'));
+  const target=document.getElementById('page-'+p);
+  if(target) target.classList.add('on');
+  document.querySelectorAll('.sb-item').forEach(x=>{
+    const navTo=x.dataset?.nav;
+    const onclick=x.getAttribute('onclick')||'';
+    const ok=(navTo && navTo===p) || onclick.includes("nav('"+p+"')") || onclick.includes('nav(\"'+p+'\")');
+    if(ok)x.classList.add('on');
+  });
+
+
+
+  document.getElementById('tb-title').textContent=pageMap[p]||p;
+  if(p!=='dashboard' && p!=='entry' && p!=='csr' && p!=='sales' && p!=='packet' && p!=='freesample' && p!=='damage' && p!=='cashback' && p!=='expense' && p!=='incentive' && p!=='salary' && p!=='advance' && p!=='stock' && p!=='download' && p!=='settings' && p!=='admin' && p!=='users') return;
+
+  const builders={
+
+    dashboard:buildDash,entry:()=>{buildDailyView();},
+    csr:buildCSR,sales:buildSales,packet:buildPacket,
+    freesample:buildFS,damage:buildDamage,cashback:buildCashback,
+    expense:buildExpense,incentive:buildIncentive,
+    salary:buildSalary,advance:buildAdvances,stock:buildStock,
+    admin:buildAdminPanel,users:buildUserManagement
+  };
+  if(builders[p])builders[p]();
+  if(window.innerWidth<=768) closeSidebar();
+}
+
+// ══ MODAL ══
+function openOv(id){
+  document.getElementById(id).classList.add('open');
+  if(id === 'ov-quick') initQuickEntryDynamic();
+}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+function openQuickEntry(){
+  fillSelects();
+  document.getElementById('q-date').value=today();
+  openOv('ov-quick');
+}
+function openExpModal(){document.getElementById('ex-date').value=today();openOv('ov-exp');}
+function openEmpModal(id=null){
+  document.getElementById('em-id').value=id||'';
+  document.getElementById('emp-mtitle').textContent=id?'👤 কর্মী সম্পাদনা':'👤 নতুন কর্মী';
+  if(id){const e=S.employees.find(x=>x.id===id);if(e){
+    document.getElementById('em-name').value=e.name||'';
+    document.getElementById('em-desig').value=e.desig||'';
+    document.getElementById('em-join').value=e.join||'';
+    document.getElementById('em-gross').value=e.gross||'';
+    document.getElementById('em-conv').value=e.conv||'';
+    document.getElementById('em-attn').value=e.attn||1000;
+    document.getElementById('em-adv').value=e.adv||0;
+    document.getElementById('em-code').value=e.code||'';
+  }}else{
+    ['em-name','em-gross','em-conv','em-code'].forEach(i=>document.getElementById(i).value='');
+    document.getElementById('em-attn').value=1000;
+    document.getElementById('em-adv').value=0;
+  }
+  openOv('ov-emp');
+}
+function openAdvModal(csr=null){
+  fillSelects();
+  document.getElementById('adv-date').value=today();
+  if(csr)document.getElementById('adv-csr').value=csr;
+  openOv('ov-adv');
+}
+function openPacModal(){fillSelects();document.getElementById('pac-date').value=today();openOv('ov-pac');}
+function openFSModal(){document.getElementById('fs-date').value=today();openOv('ov-fs');}
+function openDamModal(){fillSelects();document.getElementById('dam-date').value=today();openOv('ov-dam');}
+function openCBModal(){document.getElementById('cb-month2').value=thisMonth();openOv('ov-cb');}
+function openStkModal(){document.getElementById('stk-date').value=today();openOv('ov-stk');}
+
+// ══════════════════════════════════════════════════════════════════
+//  FILL SELECTS
+// ══════════════════════════════════════════════════════════════════
+function fillSelects(){
+  const currentCSR=getCurrentCSRName();
+  const csrs=currentCSR ? [currentCSR] : S.settings.csrs;
+  const routes=S.settings.routes;
+  ['e-csr','q-csr','adv-csr','dam-csr','pac-csr','sales-csr-filter'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const prefix=id.includes('filter') && !currentCSR ? '<option value="">সব CSR</option>' : '';
+    el.innerHTML=prefix+csrs.map(c=>`<option>${c}</option>`).join('');
+    if(currentCSR){
+      el.value=currentCSR;
+      el.disabled=['e-csr','q-csr'].includes(id);
+    } else {
+      el.disabled=false;
+    }
+  });
+  ['e-route','q-route','sales-route-filter'].forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    const prefix=id.includes('filter')?'<option value="">সব রুট</option>':'<option value="">— রুট —</option>';
+    el.innerHTML=prefix+routes.map(r=>`<option>${r}</option>`).join('');
+  });
+  const clusterEl=document.getElementById('q-cluster');
+  if(clusterEl){
+    const clusters=S.settings.clusters||DEFAULT_CLUSTERS;
+    clusterEl.innerHTML='<option value="">— ক্লাস্টার —</option>'+clusters.map(c=>`<option>${c}</option>`).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CALC HELPERS
+// ══════════════════════════════════════════════════════════════════
+function calcSaleAmount(b,k,kr,d,p,ret=0){
+  const pr=S.settings.prices;
+  return Math.max(0,(b||0)*pr.black+(k||0)*pr.kfb+(kr||0)*pr.kfr+(d||0)*pr.dg+(p||0)*pr.pg-(ret||0)*pr.kfb);
+}
+function calcIncentive(b,k,kr,d,p){
+  const pr=S.settings.prices;const rt=S.settings.rates;
+  return ((b||0)*pr.black*(rt.black/100))+((k||0)*pr.kfb*(rt.kfb/100))+
+    ((kr||0)*pr.kfr*(rt.kfr/100))+((d||0)*pr.dg*(rt.dg/100))+((p||0)*pr.pg*(rt.pg/100));
+}
+function calcFSValue(kfb,kfr,dg,pg){
+  const pr=S.settings.prices;
+  return (kfb||0)*pr.kfb+(kfr||0)*pr.kfr+(dg||0)*pr.dg+(pg||0)*pr.pg;
+}
+function nv(id){return parseFloat(document.getElementById(id)?.value)||0;}
+
+function calcEntry(){
+  const b=nv('e-black'),k=nv('e-kfb'),kr=nv('e-kfr'),d=nv('e-dg'),p=nv('e-pg'),r=nv('e-ret');
+  const fk=nv('e-fs-kfb'),fkr=nv('e-fs-kfr'),fd=nv('e-fs-dg'),fp=nv('e-fs-pg');
+  const tot=calcSaleAmount(b,k,kr,d,p,r);
+  const inc=calcIncentive(b,k,kr,d,p);
+  const fs=calcFSValue(fk,fkr,fd,fp);
+  document.getElementById('ep-total').textContent=fmtTk(tot);
+  document.getElementById('ep-inc').textContent=fmtTk(inc);
+  document.getElementById('ep-fs').textContent=fmtTk(fs);
+}
+// calcQ() বাদ দেওয়া হয়েছে (Quick Entry এখন dynamic product/return list ভিত্তিক)
+function calcQ(){}
+
+// ══════════════════════════════════════════════════════════════════
+//  ENTRY AUTO-DAY
+// ══════════════════════════════════════════════════════════════════
+function setupDateAutoDay(){
+  const ed=document.getElementById('e-date');
+  if(ed){ed.addEventListener('change',e=>{
+    const days=['রবি','সোম','মঙ্গল','বুধ','বৃহ','শুক্র','শনি'];
+    document.getElementById('e-day').value=days[new Date(e.target.value).getDay()];
+
+  });}
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SAVE / DELETE RECORDS
+// ══════════════════════════════════════════════════════════════════
+// Temporary state for Quick Entry dynamic products/returns
+let tempProducts = [];
+let tempReturns = [];
+let tempPackets = [];
+let tempCashbacks = [];
+let products = [
+  { name: 'Black', price: (S?.settings?.prices?.black ?? 0), incentive: 0 },
+  { name: 'KFB', price: (S?.settings?.prices?.kfb ?? 0), incentive: 0 },
+  { name: 'KFR', price: (S?.settings?.prices?.kfr ?? 0), incentive: 0 },
+  { name: 'DGold', price: (S?.settings?.prices?.dg ?? 0), incentive: 0 },
+  { name: 'PG', price: (S?.settings?.prices?.pg ?? 0), incentive: 0 },
+];
+
+function syncProductsPricesFromSettings(){
+  const pr = S.settings.prices;
+  products.forEach(p=>{
+    if(p.name==='Black') p.price = pr.black;
+    if(p.name==='KFB') p.price = pr.kfb;
+    if(p.name==='KFR') p.price = pr.kfr;
+    if(p.name==='DGold') p.price = pr.dg;
+    if(p.name==='PG') p.price = pr.pg;
+  });
+}
+
+// Modal dynamic init
+function initQuickEntryDynamic(){
+  syncProductsPricesFromSettings();
+  tempProducts = [];
+  tempReturns = [];
+  tempPackets = [];
+  tempCashbacks = [];
+  const qDate=document.getElementById('q-date');
+  if(qDate && !qDate.value) qDate.value=today();
+  const selQty = document.getElementById('q-product-qty');
+  if(selQty) selQty.value=1;
+  const prodRate = document.getElementById('q-product-rate');
+  if(prodRate) prodRate.value=1;
+  const retQty = document.getElementById('q-return-qty');
+  if(retQty) retQty.value=1;
+  const retRate = document.getElementById('q-return-rate');
+  if(retRate) retRate.value=1;
+  const pacQty = document.getElementById('q-packet-qty');
+  if(pacQty) pacQty.value=1;
+  const cbAmt = document.getElementById('q-cashback-amt');
+  if(cbAmt) cbAmt.value=0;
+  const cbNote = document.getElementById('q-cashback-note');
+  if(cbNote) cbNote.value='';
+  populateProductDropdowns();
+  renderProductsList();
+  renderReturnsList();
+  renderPacketList();
+  renderCashbackList();
+  updateQTotals();
+}
+
+function populateProductDropdowns(){
+  const opts = products.map(p=>`<option value="${p.name}">${p.name} (৳${p.price})</option>`).join('');
+  const a=document.getElementById('q-product-select');
+  const b=document.getElementById('q-return-select');
+  if(a) a.innerHTML=opts;
+  if(b) b.innerHTML=opts;
+}
+
+function addProductToEntry(){
+  const sel=document.getElementById('q-product-select');
+  const qtyEl=document.getElementById('q-product-qty');
+  const rateEl=document.getElementById('q-product-rate');
+  const name = sel?.value;
+  const qty = parseInt(qtyEl?.value) || 0;
+  const rate = parseFloat(rateEl?.value) || 0;
+  if(!name || qty<=0){alert('পণ্য সিলেক্ট করুন ও পরিমাণ দিন');return;}
+  if(rate < 1 || rate > 20){alert('ইনসেন্টিভ ১% থেকে ২০% মধ্যে দিন');return;}
+  const prod=products.find(p=>p.name===name);
+  if(!prod) return;
+  const existing=tempProducts.find(p=>p.name===name);
+  if(existing){ existing.qty += qty; existing.rate = rate; }
+  else tempProducts.push({name, qty, price: prod.price, rate});
+  if(qtyEl) qtyEl.value=1;
+  if(rateEl) rateEl.value=1;
+  renderProductsList();
+  updateQTotals();
+}
+
+function addReturnToEntry(){
+  const sel=document.getElementById('q-return-select');
+  const qtyEl=document.getElementById('q-return-qty');
+  const rateEl=document.getElementById('q-return-rate');
+  const name = sel?.value;
+  const qty = parseInt(qtyEl?.value) || 0;
+  const rate = parseFloat(rateEl?.value) || 0;
+  if(!name || qty<=0){alert('পণ্য সিলেক্ট করুন ও পরিমাণ দিন');return;}
+  if(rate < 1 || rate > 20){alert('ইনসেন্টিভ ১% থেকে ২০% মধ্যে দিন');return;}
+  const prod=products.find(p=>p.name===name);
+  if(!prod) return;
+  const existing=tempReturns.find(p=>p.name===name);
+  if(existing){ existing.qty += qty; existing.rate = rate; }
+  else tempReturns.push({name, qty, price: prod.price, rate});
+  if(qtyEl) qtyEl.value=1;
+  if(rateEl) rateEl.value=1;
+  renderReturnsList();
+  updateQTotals();
+}
+
+function addNewProduct(){
+  const nameEl=document.getElementById('q-new-product');
+  const priceEl=document.getElementById('q-new-product-price');
+  const name=(nameEl?.value||'').trim();
+  const price=parseFloat(priceEl?.value)||0;
+  if(!name){alert('পণ্যের নাম দিন');return;}
+  if(products.find(p=>p.name.toLowerCase()===name.toLowerCase())){alert('এই পণ্য ইতিমধ্যে আছে');return;}
+  products.push({name, price, incentive: 0});
+  if(nameEl) nameEl.value='';
+  if(priceEl) priceEl.value='';
+  populateProductDropdowns();
+  alert(`"${name}" পণ্য যোগ হয়েছে`);
+}
+
+function removeProductFromEntry(idx){
+  tempProducts.splice(idx,1);
+  renderProductsList();
+  updateQTotals();
+}
+
+function removeReturnFromEntry(idx){
+  tempReturns.splice(idx,1);
+  renderReturnsList();
+  updateQTotals();
+}
+
+function addPacketToEntry(){
+  const type=document.getElementById('q-packet-type')?.value;
+  const qty=parseInt(document.getElementById('q-packet-qty')?.value) || 0;
+  if(!type || qty<=0){alert('প্যাকেট টাইপ ও পরিমাণ দিন');return;}
+  const existing=tempPackets.find(p=>p.type===type);
+  if(existing) existing.qty += qty;
+  else tempPackets.push({type, qty});
+  if(document.getElementById('q-packet-qty')) document.getElementById('q-packet-qty').value=1;
+  renderPacketList();
+}
+
+function addCashbackToEntry(){
+  const amt=parseFloat(document.getElementById('q-cashback-amt')?.value) || 0;
+  const note=(document.getElementById('q-cashback-note')?.value||'').trim();
+  if(amt<=0){alert('ক্যাশব্যাক পরিমাণ দিন');return;}
+  const existing=tempCashbacks.find(c=>c.note===note);
+  if(existing) existing.amount += amt;
+  else tempCashbacks.push({amount:amt,note:note||'ক্যাশব্যাক'});
+  if(document.getElementById('q-cashback-amt')) document.getElementById('q-cashback-amt').value=0;
+  if(document.getElementById('q-cashback-note')) document.getElementById('q-cashback-note').value='';
+  renderCashbackList();
+}
+
+function removePacketFromEntry(idx){
+  tempPackets.splice(idx,1);
+  renderPacketList();
+}
+
+function removeCashbackFromEntry(idx){
+  tempCashbacks.splice(idx,1);
+  renderCashbackList();
+}
+
+function renderProductsList(){
+  const box=document.getElementById('q-products-list');
+  if(!box) return;
+  if(tempProducts.length===0){
+    box.innerHTML='<div class="empty-msg">কোনো পণ্য যোগ করা হয়নি।</div>';
+    return;
+  }
+  box.innerHTML=tempProducts.map((p,i)=>`
+    <div class="product-item">
+      <div class="info"><strong>${p.name}</strong> × ${p.qty}<span style="color:var(--muted);font-size:11px"> (৳${p.price})</span><br><span style="color:var(--gold2);font-size:11px">🎯 ${p.rate}%</span></div>
+      <div class="subtotal">৳ ${(p.qty*p.price).toFixed(2)}</div>
+      <button class="remove-btn" onclick="removeProductFromEntry(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function renderReturnsList(){
+  const box=document.getElementById('q-returns-list');
+  if(!box) return;
+  if(tempReturns.length===0){
+    box.innerHTML='<div class="empty-msg">কোনো রিটার্ন যোগ করা হয়নি।</div>';
+    return;
+  }
+  box.innerHTML=tempReturns.map((p,i)=>`
+    <div class="return-item">
+      <div class="info"><strong style="color:var(--warning)">${p.name}</strong> × ${p.qty}<span style="color:var(--muted);font-size:11px"> (৳${p.price})</span><br><span style="color:var(--gold2);font-size:11px">🎯 ${p.rate}%</span></div>
+      <div class="subtotal" style="color:var(--warning);">-৳ ${(p.qty*p.price).toFixed(2)}</div>
+      <button class="remove-btn" onclick="removeReturnFromEntry(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function renderPacketList(){
+  const box=document.getElementById('q-packet-list');
+  if(!box) return;
+  if(tempPackets.length===0){
+    box.innerHTML='<div class="empty-msg">কোনো প্যাকেট যোগ করা হয়নি।</div>';
+    return;
+  }
+  box.innerHTML=tempPackets.map((p,i)=>`
+    <div class="product-item">
+      <div class="info"><strong>${p.type}</strong> × ${p.qty}</div>
+      <button class="remove-btn" onclick="removePacketFromEntry(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function renderCashbackList(){
+  const box=document.getElementById('q-cashback-list');
+  if(!box) return;
+  if(tempCashbacks.length===0){
+    box.innerHTML='<div class="empty-msg">কোনো ক্যাশব্যাক যোগ করা হয়নি।</div>';
+    return;
+  }
+  box.innerHTML=tempCashbacks.map((c,i)=>`
+    <div class="product-item">
+      <div class="info"><strong>${c.note}</strong><span style="color:var(--muted);font-size:11px"> ৳${c.amount}</span></div>
+      <button class="remove-btn" onclick="removeCashbackFromEntry(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function updateQTotals(){
+  const sales=tempProducts.reduce((s,p)=>s+(p.qty*p.price),0);
+  const ret=(tempReturns||[]).reduce((s,p)=>s+(p.qty*p.price),0);
+  const el1=document.getElementById('q-total-sales');
+  const el2=document.getElementById('q-total-return');
+  const el3=document.getElementById('q-net-total');
+  if(el1) el1.textContent='৳ '+sales.toFixed(2);
+  if(el2) el2.textContent='৳ '+ret.toFixed(2);
+  if(el3) el3.textContent='৳ '+(sales-ret).toFixed(2);
+}
+
+function saveEntry(){
+  const date=document.getElementById('e-date').value;
+  const csr=getCurrentCSRName() || document.getElementById('e-csr').value;
+  const route=document.getElementById('e-route').value;
+  if(!date||!csr||!route){toast('তারিখ, CSR ও রুট বেছে নিন',true);return;}
+  const b=nv('e-black'),k=nv('e-kfb'),kr=nv('e-kfr'),d=nv('e-dg'),p=nv('e-pg'),r=nv('e-ret');
+  const fk=nv('e-fs-kfb'),fkr=nv('e-fs-kfr'),fd=nv('e-fs-dg'),fp=nv('e-fs-pg'),dam=nv('e-dam');
+  const total=calcSaleAmount(b,k,kr,d,p,r);
+  const inc=calcIncentive(b,k,kr,d,p);
+  S.sales.push({id:uid(),date,csr,route,black:b,kfb:k,kfr:kr,dg:d,pg:p,ret:r,
+    fsKfb:fk,fsKfr:fkr,fsDg:fd,fsPg:fp,dam,total,inc,note:document.getElementById('e-note').value,ownerId:getCurrentUser()?.id||''});
+  save();clearEntry();buildDailyView();toast('এন্ট্রি সেভ হয়েছে ✅');
+}
+function clearEntry(){
+  ['e-black','e-kfb','e-kfr','e-dg','e-pg','e-ret','e-fs-kfb','e-fs-kfr','e-fs-dg','e-fs-pg','e-dam','e-note'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  document.getElementById('e-csr').value=getCurrentCSRName() || '';document.getElementById('e-route').value='';
+  ['ep-total','ep-inc','ep-fs'].forEach(id=>document.getElementById(id).textContent='৳ ০');
+}
+function saveQEntry(){
+  const date = document.getElementById('q-date').value;
+  const csr = getCurrentCSRName() || document.getElementById('q-csr').value;
+  const route = document.getElementById('q-route').value;
+  const cluster = document.getElementById('q-cluster')?.value || '';
+  if(!date || !csr){alert('তারিখ ও CSR দিন');return;}
+  if(!tempProducts || tempProducts.length===0){alert('অন্তত একটি পণ্য যোগ করুন');return;}
+
+  const products = [...tempProducts];
+  const returns = [...tempReturns||[]];
+  const salesTotal = products.reduce((s,p)=>s + p.qty * p.price, 0);
+  const returnTotal = returns.reduce((s,p)=>s + p.qty * p.price, 0);
+  const total = salesTotal - returnTotal;
+  const inc = products.reduce((s,p)=>s + ((p.qty * p.price) * ((p.rate || 1) / 100)), 0);
+
+  const mapQty = {Black:0, KFB:0, KFR:0, DGold:0, PG:0};
+  products.forEach(p=>{
+    const key = p.name;
+    if(key in mapQty) mapQty[key] += p.qty;
+  });
+  const mapRetQty = {Black:0, KFB:0, KFR:0, DGold:0, PG:0};
+  returns.forEach(p=>{
+    const key = p.name;
+    if(key in mapRetQty) mapRetQty[key] += p.qty;
+  });
+
+  const b = mapQty.Black;
+  const k = mapQty.KFB;
+  const kr = mapQty.KFR;
+  const d = mapQty.DGold;
+  const pg = mapQty.PG;
+  const ret = mapRetQty.KFB;
+
+  S.sales.push({
+    id: uid(),
+    date, csr, route, cluster,
+    black: b,
+    kfb: k,
+    kfr: kr,
+    dg: d,
+    pg,
+    ret,
+    total: calcSaleAmount(b,k,kr,d,pg,ret),
+    inc: inc,
+    ownerId:getCurrentUser()?.id||'',
+  });
+
+  if(tempPackets.length){
+    const packetEntry = {id:uid(),date,csr,route,cluster,
+      non6:0,pro6:0,pro12:0,p1pac:0,p20:0,p50:0,p100:0,dg:0,total:0,ownerId:getCurrentUser()?.id||''};
+    tempPackets.forEach(({type,qty})=>{
+      switch(type){
+        case 'Non6': packetEntry.non6 += qty; break;
+        case 'Pro6': packetEntry.pro6 += qty; break;
+        case 'Pro12': packetEntry.pro12 += qty; break;
+        case 'Pro 1Pac': packetEntry.p1pac += qty; break;
+        case 'Pro 20': packetEntry.p20 += qty; break;
+        case 'Pro 50': packetEntry.p50 += qty; break;
+        case 'Pro 100': packetEntry.p100 += qty; break;
+        case 'DG প্যাকেট': packetEntry.dg += qty; break;
+      }
+    });
+    packetEntry.total = (packetEntry.non6||0)*PAC_PRICES.non6 + (packetEntry.pro6||0)*PAC_PRICES.pro6 + (packetEntry.pro12||0)*PAC_PRICES.pro12 + (packetEntry.p1pac||0)*PAC_PRICES.p1pac + (packetEntry.p20||0)*PAC_PRICES.p20 + (packetEntry.p50||0)*PAC_PRICES.p50 + (packetEntry.p100||0)*PAC_PRICES.p100 + (packetEntry.dg||0)*PAC_PRICES.dg;
+    S.packets.push(packetEntry);
+  }
+
+  if(tempCashbacks.length){
+    const cashbackTotal = tempCashbacks.reduce((s,c)=>s+(c.amount||0),0);
+    if(cashbackTotal>0){
+      S.cashbacks.push({id:uid(),month:date.slice(0,7),day:parseInt(date.slice(8,10))||1,black:0,kings:0,dg:0,vr:0,blCB:0,kCB:0,dgCB:0,vrCB:0,total:cashbackTotal,note:tempCashbacks.map(c=>c.note).join(', '),csr,ownerId:getCurrentUser()?.id||''});
+    }
+  }
+
+  save();
+  closeOv('ov-quick');
+  tempProducts = [];
+  tempReturns = [];
+  tempPackets = [];
+  tempCashbacks = [];
+  if(document.getElementById('q-product-select')) document.getElementById('q-product-select').value='';
+  if(document.getElementById('q-return-select')) document.getElementById('q-return-select').value='';
+  if(document.getElementById('q-product-rate')) document.getElementById('q-product-rate').value=1;
+  if(document.getElementById('q-return-rate')) document.getElementById('q-return-rate').value=1;
+  if(document.getElementById('q-cluster')) document.getElementById('q-cluster').value='';
+  if(document.getElementById('q-packet-type')) document.getElementById('q-packet-type').value='Non6';
+  if(document.getElementById('q-packet-qty')) document.getElementById('q-packet-qty').value=1;
+  if(document.getElementById('q-cashback-amt')) document.getElementById('q-cashback-amt').value=0;
+  if(document.getElementById('q-cashback-note')) document.getElementById('q-cashback-note').value='';
+  if(document.getElementById('q-products-list')) document.getElementById('q-products-list').innerHTML='<div class="empty-msg">কোনো পণ্য যোগ করা হয়নি।</div>';
+  if(document.getElementById('q-returns-list')) document.getElementById('q-returns-list').innerHTML='<div class="empty-msg">কোনো রিটার্ন যোগ করা হয়নি।</div>';
+  if(document.getElementById('q-packet-list')) document.getElementById('q-packet-list').innerHTML='<div class="empty-msg">কোনো প্যাকেট যোগ করা হয়নি।</div>';
+  if(document.getElementById('q-cashback-list')) document.getElementById('q-cashback-list').innerHTML='<div class="empty-msg">কোনো ক্যাশব্যাক যোগ করা হয়নি।</div>';
+
+  if(currentPage==='dashboard') buildDash();
+  else if(currentPage==='entry') buildDailyView();
+  toast('এন্ট্রি সেভ ✅');
+}
+function delSale(id){
+  const rec=S.sales.find(x=>x.id===id);
+  const currentCSR=getCurrentCSRName();
+  if(currentCSR && rec?.csr!==currentCSR){toast('নিজের এন্ট্রি ছাড়া মুছতে পারবেন না',true);return;}
+  if(!confirm('মুছবেন?'))return;
+  S.sales=S.sales.filter(x=>x.id!==id);
+  save();buildDailyView();toast('মুছা হয়েছে');
+}
+
+function saveExpense(){
+  const date=document.getElementById('ex-date').value;
+  const type=document.getElementById('ex-type').value;
+  const desc=document.getElementById('ex-desc').value;
+  const amt=nv('ex-amt');
+  if(!date||!amt){toast('তারিখ ও পরিমাণ দিন',true);return;}
+  S.expenses.push({id:uid(),date,type,desc,amount:amt});
+  save();closeOv('ov-exp');buildExpense();toast('খরচ সেভ ✅');
+}
+function delExp(id){if(!confirm('মুছবেন?'))return;S.expenses=S.expenses.filter(x=>x.id!==id);save();buildExpense();}
+
+function saveEmployee(){
+  const id=document.getElementById('em-id').value;
+  const data={name:document.getElementById('em-name').value,desig:document.getElementById('em-desig').value,
+    join:document.getElementById('em-join').value,gross:nv('em-gross'),
+    conv:nv('em-conv'),attn:nv('em-attn'),adv:nv('em-adv'),code:document.getElementById('em-code').value};
+  if(!data.name){toast('নাম দিন',true);return;}
+  if(id){const i=S.employees.findIndex(x=>x.id===id);if(i>=0)S.employees[i]={...S.employees[i],...data};}
+  else S.employees.push({id:uid(),...data});
+  save();closeOv('ov-emp');buildSalary();toast('কর্মী সেভ ✅');
+}
+function delEmployee(id){if(!confirm('কর্মী মুছবেন?'))return;S.employees=S.employees.filter(x=>x.id!==id);save();buildSalary();}
+
+function saveAdvance(){
+  const csr=document.getElementById('adv-csr').value;
+  const date=document.getElementById('adv-date').value;
+  const type=document.getElementById('adv-type').value;
+  const amt=nv('adv-amt');
+  if(!csr||!amt){toast('CSR ও পরিমাণ দিন',true);return;}
+  S.advances.push({id:uid(),csr,date,type,amount:amt,note:document.getElementById('adv-note').value});
+  save();closeOv('ov-adv');buildAdvances();toast('সেভ ✅');
+}
+function delAdv(id){if(!confirm('মুছবেন?'))return;S.advances=S.advances.filter(x=>x.id!==id);save();buildAdvances();}
+
+function savePacEntry(){
+  const date=document.getElementById('pac-date').value;
+  const csr=document.getElementById('pac-csr').value;
+  if(!date||!csr){toast('তারিখ ও CSR দিন',true);return;}
+  const pp=PAC_PRICES;
+  const n6=nv('pac-non6'),p6=nv('pac-pro6'),p12=nv('pac-pro12'),
+    p1=nv('pac-1pac'),p20=nv('pac-p20'),p50=nv('pac-p50'),p100=nv('pac-p100'),dg=nv('pac-dg');
+  const total=n6*pp.non6+p6*pp.pro6+p12*pp.pro12+p1*pp.p1pac+p20*pp.p20+p50*pp.p50+p100*pp.p100+dg*pp.dg;
+  S.packets.push({id:uid(),date,csr,non6:n6,pro6:p6,pro12:p12,p1pac:p1,p20,p50,p100,dg,total});
+  save();closeOv('ov-pac');buildPacket();toast('প্যাকেট এন্ট্রি সেভ ✅');
+}
+function saveFSEntry(){
+  const date=document.getElementById('fs-date').value;
+  const kfb=nv('fs-kfb'),kfr=nv('fs-kfr'),dg=nv('fs-dg'),pg=nv('fs-pg');
+  const val=calcFSValue(kfb,kfr,dg,pg);
+  S.freeSamples.push({id:uid(),date,kfb,kfr,dg,pg,value:val});
+  save();closeOv('ov-fs');buildFS();toast('FS এন্ট্রি সেভ ✅');
+}
+function delFS(id){if(!confirm('মুছবেন?'))return;S.freeSamples=S.freeSamples.filter(x=>x.id!==id);save();buildFS();}
+function saveDamEntry(){
+  const date=document.getElementById('dam-date').value;
+  const csr=document.getElementById('dam-csr').value;
+  const prod=document.getElementById('dam-prod').value;
+  const qty=nv('dam-qty');
+  const pr=S.settings.prices;
+  const pKey={'Black':'black','KFB':'kfb','KFR':'kfr','D.Gold':'dg','PG':'pg'}[prod]||'kfb';
+  const val=qty*(pr[pKey]||0);
+  S.damages.push({id:uid(),date,csr,prod,qty,value:val,reason:document.getElementById('dam-reason').value});
+  save();closeOv('ov-dam');buildDamage();toast('ড্যামেজ সেভ ✅');
+}
+function delDam(id){if(!confirm('মুছবেন?'))return;S.damages=S.damages.filter(x=>x.id!==id);save();buildDamage();}
+function saveCBEntry(){
+  const day=nv('cb-day');const month=document.getElementById('cb-month2').value;
+  const pr=S.settings.prices;
+  const bl=nv('cb-black'),kings=nv('cb-kings'),dg=nv('cb-dg'),vr=nv('cb-vr');
+  const blOld=bl*pr.black,blNew=bl*(pr.black-0.5),blCB=blOld-blNew;
+  const kCB=kings*(pr.kfb-4.0);const dgCB=dg*(pr.dg-3.814);const vrCB=vr*(pr.pg-3.5);
+  S.cashbacks.push({id:uid(),month,day,black:bl,kings,dg,vr,blCB,kCB,dgCB,vrCB,total:blCB+kCB+dgCB+vrCB});
+  save();closeOv('ov-cb');buildCashback();toast('ক্যাশব্যাক সেভ ✅');
+}
+function saveStkEntry(){
+  const date=document.getElementById('stk-date').value;
+  if(!date){toast('তারিখ দিন',true);return;}
+  S.stocks.push({id:uid(),date,blR:nv('stk-bl-r'),kfbR:nv('stk-kfb-r'),
+    kfrR:nv('stk-kfr-r'),dgR:nv('stk-dg-r'),pgR:nv('stk-pg-r')});
+  save();closeOv('ov-stk');buildStock();toast('স্টক সেভ ✅');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CHART HELPERS
+// ══════════════════════════════════════════════════════════════════
+function mkChart(id,type,labels,datasets,opts={}){
+  if(charts[id])charts[id].destroy();
+  const el=document.getElementById(id);if(!el)return;
+  charts[id]=new Chart(el,{type,data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:(opts.legend ?? true),labels:{color:'#8890a8',font:{size:10},boxWidth:12}}},
+    scales:(type==='pie'||type==='doughnut')?{}:{
+      x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8890a8',font:{size:9},maxRotation:0}},
+      y:{grid:{color:'rgba(255,255,255,0.06)'},ticks:{color:'#8890a8',font:{size:9},
+        callback:(v)=>v>=1000?((v/1000).toFixed(0)+'K'):v}}
+    },...(opts.extra||{})
+  }});
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════════
+function buildDash(){
+  const period=document.getElementById('dash-period')?.value||'month';
+  const tod=today();const mon=tod.slice(0,7);
+  const wStart=new Date();wStart.setDate(wStart.getDate()-7);const ws=wStart.toISOString().slice(0,10);
+  let rows=filterRowsForCurrentUser(S.sales).filter(r=>{
+    if(period==='today')return r.date===tod;
+    if(period==='week')return r.date>=ws;
+    return r.date?.startsWith(mon);
+  });
+  const totSales=rows.reduce((s,r)=>s+(r.total||0),0);
+  const totInc=rows.reduce((s,r)=>s+(r.inc||0),0);
+  const scopedExpenses=filterRowsForCurrentUser(S.expenses);
+  const scopedFS=filterRowsForCurrentUser(S.freeSamples);
+  const scopedDamages=filterRowsForCurrentUser(S.damages);
+  const monExp=scopedExpenses.filter(e=>e.date?.startsWith(mon)).reduce((s,e)=>s+(e.amount||0),0);
+  const totFS=scopedFS.filter(x=>x.date?.startsWith(mon)).reduce((s,x)=>s+(x.value||0),0);
+  const totDam=scopedDamages.filter(x=>x.date?.startsWith(mon)).reduce((s,x)=>s+(x.value||0),0);
+  const tgt=S.settings.targets.sales;
+  const pct=tgt>0?Math.min(100,totSales/tgt*100):0;
+
+  // KPIs
+  document.getElementById('kpi-row').innerHTML=`
+    <div class="kpi">
+      <div class="kpi-ico">📦</div>
+      <div class="kpi-label">মোট বিক্রয়</div>
+      <div class="kpi-val">${fmtTk(totSales)}</div>
+      <div class="prog"><div class="prog-fill pf-gold" style="width:${pct}%"></div></div>
+      <div class="kpi-sub">টার্গেট ${fmtTk(tgt)} — ${pct.toFixed(1)}%</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-ico">🎯</div>
+      <div class="kpi-label">ইনসেন্টিভ</div>
+      <div class="kpi-val">${fmtTk(totInc)}</div>
+      <div class="kpi-sub">বিক্রয়ের ${totSales>0?(totInc/totSales*100).toFixed(1):0}%</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-ico">💸</div>
+      <div class="kpi-label">মোট খরচ</div>
+      <div class="kpi-val">${fmtTk(monExp)}</div>
+      <div class="kpi-sub">এই মাসে</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-ico">📊</div>
+      <div class="kpi-label">নেট আয়</div>
+      <div class="kpi-val">${fmtTk(totSales-totInc-monExp)}</div>
+      <div class="kpi-sub">বিক্রয় − ইনসেন্টিভ − খরচ</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-ico">🎁</div>
+      <div class="kpi-label">FS মূল্য</div>
+      <div class="kpi-val">${fmtTk(totFS)}</div>
+      <div class="kpi-sub">ফ্রি স্যাম্পল (মাসিক)</div>
+    </div>
+    <div class="kpi" style="">
+      <div class="kpi-ico">⚠️</div>
+      <div class="kpi-label">ড্যামেজ</div>
+      <div class="kpi-val" style="color:var(--orange);">${fmtTk(totDam)}</div>
+      <div class="kpi-sub">মাসিক</div>
+    </div>
+  `;
+
+  // Product bar chart
+  const prTotals={Black:0,KFB:0,KFR:0,'D.Gold':0,PG:0};
+  rows.forEach(r=>{const p=S.settings.prices;
+    prTotals.Black+=(r.black||0)*p.black;prTotals.KFB+=(r.kfb||0)*p.kfb;
+    prTotals.KFR+=(r.kfr||0)*p.kfr;prTotals['D.Gold']+=(r.dg||0)*p.dg;
+    prTotals.PG+=(r.pg||0)*p.pg;
+  });
+  mkChart('ch-prod','bar',Object.keys(prTotals),[{
+    data:Object.values(prTotals),
+    backgroundColor:['#888','#5dade2','#e74c3c','#d4ac0d','#a569bd'],borderRadius:6,
+  }],{legend:false});
+
+  // CSR doughnut
+  const csrT={};rows.forEach(r=>{csrT[r.csr]=(csrT[r.csr]||0)+(r.total||0);});
+  const csrColors=['#c9931a','#5dade2','#e74c3c','#2ecc71','#a569bd','#e67e22','#1abc9c'];
+  mkChart('ch-csr','doughnut',Object.keys(csrT),[{
+    data:Object.values(csrT),backgroundColor:csrColors,borderWidth:0,
+  }],{legend:true});
+
+  // 30-day trend
+  const days30=[]; const today30=new Date();
+  for(let i=29;i>=0;i--){const d=new Date(today30);d.setDate(d.getDate()-i);days30.push(d.toISOString().slice(0,10));}
+  const scopedSales=filterRowsForCurrentUser(S.sales);
+  const dayTotals=days30.map(d=>scopedSales.filter(r=>r.date===d).reduce((s,r)=>s+(r.total||0),0));
+  mkChart('ch-trend','line',days30.map(d=>d.slice(5)),[{
+    label:'বিক্রয়',data:dayTotals,borderColor:'#c9931a',backgroundColor:'rgba(201,147,26,.1)',
+    tension:.4,fill:true,pointRadius:0,borderWidth:2,
+  }],{legend:false});
+
+  // Income vs Expense
+  const last6=[]; const now=new Date();
+  for(let i=5;i>=0;i--){const d=new Date(now);d.setMonth(d.getMonth()-i);last6.push(d.toISOString().slice(0,7));}
+  const incData=last6.map(m=>scopedSales.filter(r=>r.date?.startsWith(m)).reduce((s,r)=>s+(r.total||0),0));
+  const expData=last6.map(m=>scopedExpenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(e.amount||0),0));
+  mkChart('ch-income','bar',last6,[
+    {label:'বিক্রয়',data:incData,backgroundColor:'rgba(201,147,26,0.7)',borderRadius:4},
+    {label:'খরচ',data:expData,backgroundColor:'rgba(224,62,62,0.5)',borderRadius:4},
+  ],{legend:true});
+
+  // Recent entries
+  const recent=[...scopedSales].reverse().slice(0,10);
+  document.getElementById('dash-recent').innerHTML=recent.map(r=>`<tr>
+    <td>${r.date}</td><td>${r.csr}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.route||'—'}</td>
+    <td class="c-black">${r.black||0}</td><td class="c-kfb">${r.kfb||0}</td><td class="c-kfr">${r.kfr||0}</td>
+    <td class="c-dg">${r.dg||0}</td><td class="c-pg">${r.pg||0}</td>
+    <td class="c-fs">${(r.fsKfb||0)+(r.fsKfr||0)+(r.fsDg||0)+(r.fsPg||0)}</td>
+    <td class="c-dam">${r.dam||0}</td>
+    <td style="font-weight:700;color:var(--gold2);">${fmtTk(r.total)}</td>
+  </tr>`).join('')||'<tr><td colspan="11" class="empty"><div class="empty-ico">📭</div><div class="empty-txt">কোনো এন্ট্রি নেই</div></td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DAILY VIEW (ENTRY PAGE)
+// ══════════════════════════════════════════════════════════════════
+function buildDailyView(){
+  fillSelects();
+  const el=document.getElementById('view-date');
+  if(!el.value)el.value=today();
+  if(!document.getElementById('e-date').value){document.getElementById('e-date').value=today();calcEntry();}
+  const d=el.value;
+  const rows=filterRowsForCurrentUser(S.sales).filter(r=>r.date===d);
+  let tot={black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0};
+  rows.forEach(r=>{tot.black+=(r.black||0);tot.kfb+=(r.kfb||0);tot.kfr+=(r.kfr||0);
+    tot.dg+=(r.dg||0);tot.pg+=(r.pg||0);tot.total+=(r.total||0);tot.inc+=(r.inc||0);});
+  document.getElementById('today-kpi').innerHTML=
+    `<div class="mini"><div class="mini-v" style="color:var(--gold2);">${fmtTk(tot.total)}</div><div class="mini-l">মোট বিক্রয়</div></div>
+     <div class="mini"><div class="mini-v" style="color:var(--green);">${fmtTk(tot.inc)}</div><div class="mini-l">ইনসেন্টিভ</div></div>
+     <div class="mini"><div class="mini-v">${fmtN(tot.kfb)}</div><div class="mini-l">KFB</div></div>
+     <div class="mini"><div class="mini-v">${fmtN(tot.dg)}</div><div class="mini-l">D.Gold</div></div>
+     <div class="mini"><div class="mini-v">${rows.length}</div><div class="mini-l">এন্ট্রি</div></div>`;
+  document.getElementById('daily-list').innerHTML=rows.map(r=>`<tr>
+    <td>${r.csr}</td><td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;">${r.route}</td>
+    <td class="c-kfb">${r.kfb||0}</td><td class="c-kfr">${r.kfr||0}</td>
+    <td class="c-dg">${r.dg||0}</td><td class="c-pg">${r.pg||0}</td>
+    <td style="font-weight:700;">${fmtTk(r.total)}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="delSale('${r.id}')">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t3);">কোনো এন্ট্রি নেই</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CSR PERFORMANCE
+// ══════════════════════════════════════════════════════════════════
+function buildCSR(){
+  const month=document.getElementById('csr-month').value||thisMonth();
+  const rows=filterRowsForCurrentUser(S.sales).filter(r=>r.date?.startsWith(month));
+  const currentCSR=getCurrentCSRName();
+  const csrs=currentCSR ? [currentCSR] : S.settings.csrs;
+  const tgt=S.settings.targets;
+  const incRates=S.settings.rates;const prices=S.settings.prices;
+  const byCSR={};
+  csrs.forEach(c=>{byCSR[c]={csr:c,black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0,fs:0,dam:0,days:new Set()};});
+  rows.forEach(r=>{
+    if(!byCSR[r.csr])byCSR[r.csr]={csr:r.csr,black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0,fs:0,dam:0,days:new Set()};
+    const c=byCSR[r.csr];
+    c.black+=(r.black||0);c.kfb+=(r.kfb||0);c.kfr+=(r.kfr||0);
+    c.dg+=(r.dg||0);c.pg+=(r.pg||0);c.total+=(r.total||0);c.inc+=(r.inc||0);
+    c.fs+=(r.fsKfb||0)+(r.fsKfr||0)+(r.fsDg||0)+(r.fsPg||0);
+    c.dam+=(r.dam||0);c.days.add(r.date);
+  });
+  const csrList=Object.values(byCSR).sort((a,b)=>b.total-a.total);
+  const perCSRTgt=tgt.sales/csrs.length;
+  const initials={'Rana':'R','Ismail':'I','Mostafa':'M','Saiful':'S','Sayod Alam':'SA','Ibrahim':'Ib','Faysal':'F'};
+
+  // Cards
+  document.getElementById('csr-cards').innerHTML=csrList.map(c=>{
+    const pct=perCSRTgt>0?Math.min(120,c.total/perCSRTgt*100):0;
+    const status=pct>=100?'status-good':pct>=70?'status-warn':'status-bad';
+    const statusTxt=pct>=100?'✅ গুড':pct>=70?'⚠️ সতর্কতা':'❌ লো';
+    const init=initials[c.csr]||(c.csr[0]||'?');
+    return `<div class="csr-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div class="csr-avatar">${init}</div>
+        <span class="${status}">${statusTxt}</span>
+      </div>
+      <div class="csr-name">${c.csr}</div>
+      <div class="csr-role">মোট: <strong style="color:var(--gold2);">${fmtTk(c.total)}</strong></div>
+      <div class="prog" style="margin:6px 0;"><div class="prog-fill ${pct>=100?'pf-green':pct>=70?'pf-gold':'pf-red'}" style="width:${Math.min(100,pct)}%"></div></div>
+      <div style="font-size:9px;color:var(--t3);">টার্গেট ${pct.toFixed(1)}% অর্জন (${fmtTk(perCSRTgt)})</div>
+      <div class="csr-stats">
+        <div class="csr-stat-item"><div class="csr-stat-val c-kfb">${fmtN(c.kfb)}</div><div class="csr-stat-lbl">KFB</div></div>
+        <div class="csr-stat-item"><div class="csr-stat-val c-dg">${fmtN(c.dg)}</div><div class="csr-stat-lbl">D.Gold</div></div>
+        <div class="csr-stat-item"><div class="csr-stat-val" style="color:var(--green);">${fmtTk(c.inc)}</div><div class="csr-stat-lbl">ইনসেন্টিভ</div></div>
+        <div class="csr-stat-item"><div class="csr-stat-val">${c.days.size}</div><div class="csr-stat-lbl">কর্মদিবস</div></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // CSR bar comparison
+  mkChart('ch-csr2','bar',csrList.map(c=>c.csr),[
+    {label:'বিক্রয় (৳)',data:csrList.map(c=>c.total),backgroundColor:'rgba(201,147,26,0.7)',borderRadius:4},
+    {label:'ইনসেন্টিভ (৳)',data:csrList.map(c=>c.inc),backgroundColor:'rgba(39,174,96,0.6)',borderRadius:4},
+  ],{legend:true});
+
+  // Detail table
+  document.getElementById('csr-detail-tbody').innerHTML=csrList.map(c=>{
+    const pct=perCSRTgt>0?c.total/perCSRTgt*100:0;
+    const st=pct>=100?'status-good':pct>=70?'status-warn':'status-bad';
+    return `<tr>
+      <td style="font-weight:700;">${c.csr}</td>
+      <td class="c-black">${c.black}</td><td class="c-kfb">${c.kfb}</td>
+      <td class="c-kfr">${c.kfr}</td><td class="c-dg">${c.dg}</td><td class="c-pg">${c.pg}</td>
+      <td style="font-weight:700;">${fmtTk(c.total)}</td>
+      <td class="c-fs">${c.fs}</td><td class="c-dam">${c.dam}</td>
+      <td style="color:var(--green);">${fmtTk(c.inc)}</td>
+      <td>${pct.toFixed(1)}%<div class="prog" style="margin-top:3px;"><div class="prog-fill ${pct>=100?'pf-green':pct>=70?'pf-gold':'pf-red'}" style="width:${Math.min(100,pct)}%"></div></div></td>
+      <td><span class="${st}">${pct>=100?'✅ গুড':pct>=70?'⚠️ সতর্কতা':'❌ লো'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SALES REPORT
+// ══════════════════════════════════════════════════════════════════
+function salesTab(t){
+  salesTabCurrent=t;
+  document.querySelectorAll('#sales-tabs .tab').forEach((el,i)=>el.classList.toggle('on',['daily','csr','route','product'][i]===t));
+  buildSales();
+}
+function buildSales(){
+  const month=document.getElementById('sales-month')?.value||thisMonth();
+  const csrF=document.getElementById('sales-csr-filter')?.value||'';
+  const routeF=document.getElementById('sales-route-filter')?.value||'';
+  let rows=S.sales.filter(r=>r.date?.startsWith(month));
+  if(csrF)rows=rows.filter(r=>r.csr===csrF);
+  if(routeF)rows=rows.filter(r=>r.route===routeF);
+
+  const tot={black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0};
+  rows.forEach(r=>{tot.black+=(r.black||0);tot.kfb+=(r.kfb||0);tot.kfr+=(r.kfr||0);
+    tot.dg+=(r.dg||0);tot.pg+=(r.pg||0);tot.total+=(r.total||0);tot.inc+=(r.inc||0);});
+
+  document.getElementById('sales-kpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">মোট বিক্রয়</div><div class="kpi-val">${fmtTk(tot.total)}</div></div>
+    <div class="kpi green"><div class="kpi-label">ইনসেন্টিভ</div><div class="kpi-val">${fmtTk(tot.inc)}</div></div>
+    <div class="kpi blue"><div class="kpi-label">KFB (pack)</div><div class="kpi-val">${fmtN(tot.kfb)}</div></div>
+    <div class="kpi purple"><div class="kpi-label">D.Gold (pack)</div><div class="kpi-val">${fmtN(tot.dg)}</div></div>
+  `;
+
+  const pr=S.settings.prices;const rt=S.settings.rates;
+  const card=document.getElementById('sales-table-card');
+  if(salesTabCurrent==='daily'){
+    const byDate={};
+    rows.forEach(r=>{if(!byDate[r.date])byDate[r.date]={date:r.date,black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0};
+      const d=byDate[r.date];d.black+=(r.black||0);d.kfb+=(r.kfb||0);d.kfr+=(r.kfr||0);
+      d.dg+=(r.dg||0);d.pg+=(r.pg||0);d.total+=(r.total||0);d.inc+=(r.inc||0);});
+    const daily=Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
+    card.innerHTML=`<div class="card-hd"><span class="card-title">📋 দৈনিক বিক্রয়</span></div>
+    <div class="tbl-wrap"><table class="tbl-alt"><thead><tr><th>তারিখ</th><th>দিন</th>
+      <th class="c-black">Black</th><th class="c-kfb">KFB</th><th class="c-kfr">KFR</th>
+      <th class="c-dg">D.Gold</th><th class="c-pg">PG</th>
+      <th>মোট বিক্রয়</th><th>ইনসেন্টিভ</th><th>নেট</th>
+    </tr></thead><tbody>${daily.map(d=>`<tr>
+      <td>${d.date}</td><td>${dayName(d.date)}</td>
+      <td>${d.black}</td><td>${d.kfb}</td><td>${d.kfr}</td><td>${d.dg}</td><td>${d.pg}</td>
+      <td style="font-weight:700;">${fmtTk(d.total)}</td>
+      <td style="color:var(--green);">${fmtTk(d.inc)}</td>
+      <td style="color:var(--blue);">${fmtTk(d.total-d.inc)}</td>
+    </tr>`).join('')||'<tr><td colspan="10" class="empty">ডেটা নেই</td></tr>'}</tbody>
+    <tfoot><tr class="tbl-foot"><td colspan="2">মোট</td>
+      <td>${tot.black}</td><td>${tot.kfb}</td><td>${tot.kfr}</td><td>${tot.dg}</td><td>${tot.pg}</td>
+      <td>${fmtTk(tot.total)}</td><td>${fmtTk(tot.inc)}</td><td>${fmtTk(tot.total-tot.inc)}</td>
+    </tr></tfoot></table></div>`;
+
+    // charts
+    const dl=Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
+    mkChart('ch-st','line',dl.map(d=>d.date.slice(8)),[{
+      label:'বিক্রয়',data:dl.map(d=>d.total),borderColor:'#c9931a',
+      backgroundColor:'rgba(201,147,26,.1)',tension:.4,fill:true,pointRadius:2,borderWidth:2,
+    }],{legend:false});
+    mkChart('ch-sp','doughnut',['Black','KFB','KFR','D.Gold','PG'],[{
+      data:[tot.black*pr.black,tot.kfb*pr.kfb,tot.kfr*pr.kfr,tot.dg*pr.dg,tot.pg*pr.pg],
+      backgroundColor:Object.values(PROD_COLORS),borderWidth:0,
+    }],{legend:true});
+  }
+  else if(salesTabCurrent==='csr'){
+    const byC={};
+    rows.forEach(r=>{if(!byC[r.csr])byC[r.csr]={csr:r.csr,black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0,days:new Set()};
+      byC[r.csr].black+=(r.black||0);byC[r.csr].kfb+=(r.kfb||0);byC[r.csr].kfr+=(r.kfr||0);
+      byC[r.csr].dg+=(r.dg||0);byC[r.csr].pg+=(r.pg||0);byC[r.csr].total+=(r.total||0);
+      byC[r.csr].inc+=(r.inc||0);byC[r.csr].days.add(r.date);});
+    card.innerHTML=`<div class="card-hd"><span class="card-title">👥 CSR ভিত্তিক বিক্রয়</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>CSR</th><th>Black</th><th>KFB</th><th>KFR</th><th>D.Gold</th><th>PG</th>
+      <th>মোট বিক্রয়</th><th>ইনসেন্টিভ</th><th>কর্মদিবস</th><th>গড়/দিন</th></tr></thead>
+    <tbody>${Object.values(byC).sort((a,b)=>b.total-a.total).map(c=>`<tr>
+      <td style="font-weight:700;">${c.csr}</td>
+      <td>${c.black}</td><td>${c.kfb}</td><td>${c.kfr}</td><td>${c.dg}</td><td>${c.pg}</td>
+      <td style="font-weight:700;">${fmtTk(c.total)}</td>
+      <td style="color:var(--green);">${fmtTk(c.inc)}</td>
+      <td>${c.days.size}</td>
+      <td>${c.days.size>0?fmtTk(c.total/c.days.size):'—'}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+  }
+  else if(salesTabCurrent==='route'){
+    const byR={};
+    rows.forEach(r=>{if(!byR[r.route])byR[r.route]={route:r.route,total:0,kfb:0,dg:0,cnt:0};
+      byR[r.route].total+=(r.total||0);byR[r.route].kfb+=(r.kfb||0);byR[r.route].dg+=(r.dg||0);byR[r.route].cnt++;});
+    card.innerHTML=`<div class="card-hd"><span class="card-title">🗺️ রুট ভিত্তিক বিক্রয়</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>রুট</th><th>এন্ট্রি</th><th>KFB</th><th>D.Gold</th><th>মোট বিক্রয়</th><th>গড়/ভিজিট</th></tr></thead>
+    <tbody>${Object.values(byR).sort((a,b)=>b.total-a.total).map(r=>`<tr>
+      <td>${r.route}</td><td>${r.cnt}</td><td>${r.kfb}</td><td>${r.dg}</td>
+      <td style="font-weight:700;">${fmtTk(r.total)}</td>
+      <td>${r.cnt>0?fmtTk(r.total/r.cnt):'—'}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+  }
+  else if(salesTabCurrent==='product'){
+    card.innerHTML=`<div class="card-hd"><span class="card-title">📦 প্রোডাক্ট ভিত্তিক বিক্রয়</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>প্রোডাক্ট</th><th>পরিমাণ</th><th>রেট (৳)</th><th>মোট বিক্রয় (৳)</th><th>ইনসেন্টিভ রেট</th><th>ইনসেন্টিভ (৳)</th></tr></thead>
+    <tbody>${[
+      {n:'Black',q:tot.black,p:pr.black,r:rt.black,col:'c-black'},
+      {n:'KFB',q:tot.kfb,p:pr.kfb,r:rt.kfb,col:'c-kfb'},
+      {n:'KFR',q:tot.kfr,p:pr.kfr,r:rt.kfr,col:'c-kfr'},
+      {n:'D.Gold',q:tot.dg,p:pr.dg,r:rt.dg,col:'c-dg'},
+      {n:'PG/Virgin',q:tot.pg,p:pr.pg,r:rt.pg,col:'c-pg'},
+    ].map(x=>{const s=x.q*x.p;const inc=s*(x.r/100);return `<tr>
+      <td class="${x.col}" style="font-weight:700;">${x.n}</td>
+      <td>${fmtN(x.q)}</td><td>${x.p}</td>
+      <td style="font-weight:700;">${fmtTk(s)}</td>
+      <td>${x.r}%</td>
+      <td style="color:var(--green);">${fmtTk(inc)}</td>
+    </tr>`;}).join('')}</tbody></table></div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PACKET
+// ══════════════════════════════════════════════════════════════════
+function buildPacket(){
+  const month=document.getElementById('pac-month')?.value||thisMonth();
+  const rows=S.packets.filter(r=>r.date?.startsWith(month)).sort((a,b)=>a.date.localeCompare(b.date));
+  const tot={non6:0,pro6:0,pro12:0,p1pac:0,p20:0,p50:0,p100:0,dg:0,total:0};
+  rows.forEach(r=>{Object.keys(tot).forEach(k=>{tot[k]+=(r[k]||0);});});
+  document.getElementById('pac-summary').innerHTML=`
+    <div class="mini-stats">
+      <div class="mini"><div class="mini-v">${tot.non6}</div><div class="mini-l">Non6</div></div>
+      <div class="mini"><div class="mini-v">${tot.pro6}</div><div class="mini-l">Pro6</div></div>
+      <div class="mini"><div class="mini-v">${tot.pro12}</div><div class="mini-l">Pro12</div></div>
+      <div class="mini"><div class="mini-v">${tot.p1pac}</div><div class="mini-l">1Pac</div></div>
+      <div class="mini"><div class="mini-v">${tot.dg}</div><div class="mini-l">DG</div></div>
+      <div class="mini"><div class="mini-v">${fmtTk(tot.total)}</div><div class="mini-l">মোট মূল্য</div></div>
+    </div>`;
+  const byCSR={};
+  rows.forEach(r=>{byCSR[r.csr]=(byCSR[r.csr]||0)+(r.total||0);});
+  mkChart('ch-pac','bar',Object.keys(byCSR),[{
+    data:Object.values(byCSR),backgroundColor:'rgba(201,147,26,0.6)',borderRadius:6,
+  }],{legend:false});
+  const n=rows.length;
+  document.getElementById('pac-tbody').innerHTML=rows.map((r,i)=>`<tr>
+    <td>${n-i}</td><td>${r.date}</td><td>${r.csr}</td>
+    <td>${r.non6||0}</td><td>${r.pro6||0}</td><td>${r.pro12||0}</td><td>${r.p1pac||0}</td>
+    <td>${r.p20||0}</td><td>${r.p50||0}</td><td>${r.p100||0}</td><td>${r.dg||0}</td>
+    <td style="font-weight:700;">${fmtTk(r.total)}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="S.packets=S.packets.filter(x=>x.id!=='${r.id}');save();buildPacket();">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--t3);">কোনো ডেটা নেই</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  FREE SAMPLE
+// ══════════════════════════════════════════════════════════════════
+function buildFS(){
+  const month=document.getElementById('fs-month')?.value||thisMonth();
+  const rows=S.freeSamples.filter(r=>r.date?.startsWith(month)).sort((a,b)=>a.date.localeCompare(b.date));
+  const tot={kfb:0,kfr:0,dg:0,pg:0,val:0};
+  rows.forEach(r=>{tot.kfb+=(r.kfb||0);tot.kfr+=(r.kfr||0);tot.dg+=(r.dg||0);tot.pg+=(r.pg||0);tot.val+=(r.value||0);});
+  document.getElementById('fs-kpi').innerHTML=`
+    <div class="mini"><div class="mini-v c-kfb">${tot.kfb}</div><div class="mini-l">KFB</div></div>
+    <div class="mini"><div class="mini-v c-kfr">${tot.kfr}</div><div class="mini-l">KFR</div></div>
+    <div class="mini"><div class="mini-v c-dg">${tot.dg}</div><div class="mini-l">DG</div></div>
+    <div class="mini"><div class="mini-v c-pg">${tot.pg}</div><div class="mini-l">PG/VR</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--green);">${fmtTk(tot.val)}</div><div class="mini-l">মোট মূল্য</div></div>`;
+  document.getElementById('fs-tbody').innerHTML=rows.map((r,i)=>`<tr>
+    <td>${i+1}</td><td>${r.date}</td>
+    <td>${r.kfb||0}</td><td>${r.kfr||0}</td><td>${r.dg||0}</td><td>${r.pg||0}</td>
+    <td style="color:var(--green);">${fmtTk(r.value)}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="delFS('${r.id}')">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t3);">কোনো ডেটা নেই</td></tr>';
+  document.getElementById('fs-t-kfb').textContent=tot.kfb;
+  document.getElementById('fs-t-kfr').textContent=tot.kfr;
+  document.getElementById('fs-t-dg').textContent=tot.dg;
+  document.getElementById('fs-t-pg').textContent=tot.pg;
+  document.getElementById('fs-t-val').textContent=fmtTk(tot.val);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  DAMAGE
+// ══════════════════════════════════════════════════════════════════
+function buildDamage(){
+  const month=document.getElementById('dam-month')?.value||thisMonth();
+  const rows=S.damages.filter(r=>r.date?.startsWith(month)).sort((a,b)=>a.date.localeCompare(b.date));
+  let total=0;
+  document.getElementById('dam-tbody').innerHTML=rows.map((r,i)=>{total+=(r.value||0);return`<tr>
+    <td>${i+1}</td><td>${r.date}</td><td>${r.csr}</td><td>${r.prod}</td>
+    <td>${r.qty}</td><td style="color:var(--red);">${fmtTk(r.value)}</td>
+    <td>${r.reason||'—'}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="delDam('${r.id}')">✕</button></td>
+  </tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--t3);">কোনো ড্যামেজ নেই</td></tr>';
+  document.getElementById('dam-total').textContent=fmtTk(total);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CASHBACK
+// ══════════════════════════════════════════════════════════════════
+function buildCashback(){
+  const month=document.getElementById('cb-month')?.value||thisMonth();
+  const rows=S.cashbacks.filter(r=>r.month===month).sort((a,b)=>a.day-b.day);
+  let totCB=0;
+  document.getElementById('cb-kpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">মোট ক্যাশব্যাক</div>
+      <div class="kpi-val" style="color:var(--green);">${fmtTk(rows.reduce((s,r)=>s+(r.total||0),0))}</div></div>`;
+  document.getElementById('cb-black-tbody').innerHTML=rows.map(r=>`<tr>
+    <td>${r.day}</td><td>${r.black}</td>
+    <td>${(r.black*(S.settings.prices.black)).toFixed(2)}</td>
+    <td>${(r.black*(S.settings.prices.black-0.5)).toFixed(2)}</td>
+    <td style="color:var(--green);">${fmtTk(r.blCB)}</td>
+  </tr>`).join('')||'<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--t3);">ডেটা নেই</td></tr>';
+  document.getElementById('cb-kings-tbody').innerHTML=rows.map(r=>`<tr>
+    <td>${r.day}</td><td>${r.kings}</td><td style="color:var(--green);">${fmtTk(r.kCB)}</td>
+    <td>${r.dg}</td><td style="color:var(--green);">${fmtTk(r.dgCB)}</td>
+    <td style="color:var(--green);">${fmtTk(r.vrCB)}</td>
+  </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:12px;color:var(--t3);">ডেটা নেই</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXPENSE
+// ══════════════════════════════════════════════════════════════════
+function buildExpense(){
+  const month=document.getElementById('exp-month')?.value||thisMonth();
+  const rows=S.expenses.filter(e=>e.date?.startsWith(month)).sort((a,b)=>a.date.localeCompare(b.date));
+  let total=0;const catTot={};
+  document.getElementById('exp-tbody').innerHTML=rows.map(e=>{
+    total+=(e.amount||0);catTot[e.type]=(catTot[e.type]||0)+(e.amount||0);
+    return`<tr><td>${e.date}</td><td><span class="badge bg-gold">${e.type}</span></td>
+    <td>${e.desc||'—'}</td><td style="font-weight:700;">${fmtTk(e.amount)}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="delExp('${e.id}')">✕</button></td></tr>`;
+  }).join('')||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--t3);">কোনো খরচ নেই</td></tr>';
+  document.getElementById('exp-total').textContent=fmtTk(total);
+  document.getElementById('exp-kpi').innerHTML=`
+    <div class="kpi red"><div class="kpi-label">মোট খরচ</div><div class="kpi-val">${fmtTk(total)}</div></div>
+    <div class="kpi"><div class="kpi-label">ক্যাটাগরি</div><div class="kpi-val">${Object.keys(catTot).length}</div></div>`;
+  if(Object.keys(catTot).length>0){
+    mkChart('ch-exp','doughnut',Object.keys(catTot),[{
+      data:Object.values(catTot),backgroundColor:['#c9931a','#5dade2','#e74c3c','#2ecc71','#a569bd','#e67e22','#1abc9c','#3498db','#9b59b6','#f39c12'],
+      borderWidth:0,
+    }],{legend:true});
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  INCENTIVE
+// ══════════════════════════════════════════════════════════════════
+function buildIncentive(){
+  const month=document.getElementById('inc-month')?.value||thisMonth();
+  const rows=S.sales.filter(r=>r.date?.startsWith(month));
+  const pr=S.settings.prices;const rt=S.settings.rates;
+  const byDate={};
+  rows.forEach(r=>{if(!byDate[r.date])byDate[r.date]={date:r.date,black:0,kfb:0,kfr:0,dg:0,pg:0};
+    byDate[r.date].black+=(r.black||0);byDate[r.date].kfb+=(r.kfb||0);
+    byDate[r.date].kfr+=(r.kfr||0);byDate[r.date].dg+=(r.dg||0);byDate[r.date].pg+=(r.pg||0);});
+  const daily=Object.values(byDate).sort((a,b)=>a.date.localeCompare(b.date));
+  let tot={bs:0,bi:0,ks:0,ki:0,krs:0,kri:0,ds:0,di:0,ps:0,pi:0,ti:0};
+  document.getElementById('inc-tbody').innerHTML=daily.map(d=>{
+    const bs=d.black*pr.black,bi=bs*(rt.black/100);
+    const ks=d.kfb*pr.kfb,ki=ks*(rt.kfb/100);
+    const krs=d.kfr*pr.kfr,kri=krs*(rt.kfr/100);
+    const ds=d.dg*pr.dg,di=ds*(rt.dg/100);
+    const ps=d.pg*pr.pg,pi=ps*(rt.pg/100);
+    const ti=bi+ki+kri+di+pi;
+    tot.bs+=bs;tot.bi+=bi;tot.ks+=ks;tot.ki+=ki;tot.krs+=krs;tot.kri+=kri;
+    tot.ds+=ds;tot.di+=di;tot.ps+=ps;tot.pi+=pi;tot.ti+=ti;
+    return`<tr><td>${d.date}</td>
+      <td>${fmtTk(bs)}</td><td style="color:var(--green);">${fmtTk(bi)}</td>
+      <td>${fmtTk(ks)}</td><td style="color:var(--green);">${fmtTk(ki)}</td>
+      <td>${fmtTk(krs)}</td><td style="color:var(--green);">${fmtTk(kri)}</td>
+      <td>${fmtTk(ds)}</td><td style="color:var(--green);">${fmtTk(di)}</td>
+      <td>${fmtTk(ps)}</td><td style="color:var(--green);">${fmtTk(pi)}</td>
+      <td style="font-weight:800;color:var(--gold2);">${fmtTk(ti)}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--t3);">ডেটা নেই</td></tr>';
+  document.getElementById('inc-foot').innerHTML=`<td>মোট</td>
+    <td>${fmtTk(tot.bs)}</td><td>${fmtTk(tot.bi)}</td>
+    <td>${fmtTk(tot.ks)}</td><td>${fmtTk(tot.ki)}</td>
+    <td>${fmtTk(tot.krs)}</td><td>${fmtTk(tot.kri)}</td>
+    <td>${fmtTk(tot.ds)}</td><td>${fmtTk(tot.di)}</td>
+    <td>${fmtTk(tot.ps)}</td><td>${fmtTk(tot.pi)}</td>
+    <td>${fmtTk(tot.ti)}</td>`;
+  document.getElementById('inc-kpi').innerHTML=`
+    <div class="mini"><div class="mini-v" style="color:var(--gold2);">${fmtTk(tot.ti)}</div><div class="mini-l">মোট ইনসেন্টিভ</div></div>
+    <div class="mini"><div class="mini-v c-kfb">${fmtTk(tot.ki)}</div><div class="mini-l">KFB ইনসেন্টিভ</div></div>
+    <div class="mini"><div class="mini-v c-kfr">${fmtTk(tot.kri)}</div><div class="mini-l">KFR ইনসেন্টিভ</div></div>
+    <div class="mini"><div class="mini-v c-dg">${fmtTk(tot.di)}</div><div class="mini-l">DG ইনসেন্টিভ</div></div>
+    <div class="mini"><div class="mini-v c-pg">${fmtTk(tot.pi)}</div><div class="mini-l">PG ইনসেন্টিভ</div></div>`;
+  mkChart('ch-inc','bar',daily.map(d=>d.date.slice(8)),[{
+    label:'ইনসেন্টিভ',data:daily.map(d=>{const b=d.black*pr.black*(rt.black/100),k=d.kfb*pr.kfb*(rt.kfb/100),kr=d.kfr*pr.kfr*(rt.kfr/100),dg=d.dg*pr.dg*(rt.dg/100),pg=d.pg*pr.pg*(rt.pg/100);return b+k+kr+dg+pg;}),
+    backgroundColor:'rgba(39,174,96,0.6)',borderRadius:4,
+  }],{legend:false});
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SALARY
+// ══════════════════════════════════════════════════════════════════
+function buildSalary(){
+  const month=document.getElementById('sal-month')?.value||thisMonth();
+  document.getElementById('sal-month-lbl').textContent=month;
+  const emps=S.employees;
+  // get incentives for each CSR
+  const incByCSR={};
+  S.sales.filter(r=>r.date?.startsWith(month)).forEach(r=>{
+    incByCSR[r.csr]=(incByCSR[r.csr]||0)+(r.inc||0);
+  });
+  // advances paid this month
+  const advByCSR={};
+  S.advances.filter(a=>a.date?.startsWith(month)&&a.type==='advance').forEach(a=>{
+    advByCSR[a.csr]=(advByCSR[a.csr]||0)+(a.amount||0);
+  });
+  let totGross=0,totPayable=0,totAdv=0,totNet=0;
+  document.getElementById('sal-tbody').innerHTML=emps.map((e,i)=>{
+    const inc=incByCSR[e.name]||0;
+    const adv=advByCSR[e.name]||e.adv||0;
+    const attn=e.attn||1000;const conv=e.conv||0;
+    const payable=(e.gross||0)+attn+conv+inc;
+    const net=payable-adv;
+    totGross+=(e.gross||0);totPayable+=payable;totAdv+=adv;totNet+=net;
+    return`<tr>
+      <td>${i+1}</td><td style="font-weight:700;">${e.name}</td>
+      <td><span class="badge bg-blue">${e.desig||'—'}</span></td>
+      <td>${fmtTk(e.gross)}</td><td>${fmtTk(attn)}</td><td>${fmtTk(conv)}</td>
+      <td style="color:var(--green);">${fmtTk(inc)}</td>
+      <td style="color:var(--purple);">—</td>
+      <td style="font-weight:700;">${fmtTk(payable)}</td>
+      <td style="color:var(--red);">${fmtTk(adv)}</td>
+      <td style="font-weight:800;color:var(--gold2);">${fmtTk(net)}</td>
+      <td>
+        <button class="btn btn-ghost btn-xs" onclick="openEmpModal('${e.id}')">✏️</button>
+        <button class="btn btn-danger btn-xs" onclick="delEmployee('${e.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--t3);">কোনো কর্মী নেই। প্রথমে কর্মী যোগ করুন।</td></tr>';
+  document.getElementById('sal-foot').innerHTML=`<td colspan="3">মোট</td>
+    <td>${fmtTk(totGross)}</td><td>—</td><td>—</td><td>—</td><td>—</td>
+    <td>${fmtTk(totPayable)}</td><td style="color:var(--red);">${fmtTk(totAdv)}</td>
+    <td style="color:var(--gold2);">${fmtTk(totNet)}</td><td></td>`;
+  document.getElementById('sal-kpi').innerHTML=`
+    <div class="mini"><div class="mini-v">${fmtTk(totGross)}</div><div class="mini-l">গ্রস বেতন</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--green);">${fmtTk(totPayable)}</div><div class="mini-l">মোট প্রদেয়</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--red);">${fmtTk(totAdv)}</div><div class="mini-l">অগ্রিম কাটা</div></div>
+    <div class="mini"><div class="mini-v" style="color:var(--gold2);">${fmtTk(totNet)}</div><div class="mini-l">নেট প্রদেয়</div></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  CSR ADVANCE
+// ══════════════════════════════════════════════════════════════════
+function buildAdvances(){
+  const csrs=S.settings.csrs;
+  const byCSR={};
+  csrs.forEach(c=>{byCSR[c]={csr:c,advance:0,payment:0};});
+  S.advances.forEach(a=>{
+    if(!byCSR[a.csr])byCSR[a.csr]={csr:a.csr,advance:0,payment:0};
+    if(a.type==='advance')byCSR[a.csr].advance+=(a.amount||0);
+    else byCSR[a.csr].payment+=(a.amount||0);
+  });
+  document.getElementById('adv-cards').innerHTML=Object.values(byCSR).map(c=>{
+    const bal=c.advance-c.payment;
+    return`<div class="card" style="text-align:center;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">${c.csr}</div>
+      <div style="font-size:10px;color:var(--t3);">মোট অগ্রিম</div>
+      <div style="font-size:18px;font-weight:700;color:var(--red);">${fmtTk(c.advance)}</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:4px;">পরিশোধ</div>
+      <div style="font-size:16px;font-weight:700;color:var(--green);">${fmtTk(c.payment)}</div>
+      <div style="height:1px;background:var(--border2);margin:8px 0;"></div>
+      <div style="font-size:11px;color:var(--t3);">বাকি</div>
+      <div style="font-size:20px;font-weight:800;color:${bal>0?'var(--red)':'var(--green)'};">${fmtTk(bal)}</div>
+      <button class="btn btn-gold btn-sm" style="width:100%;margin-top:8px;" onclick="openAdvModal('${c.csr}')">পেমেন্ট দিন</button>
+    </div>`;
+  }).join('');
+  const advsorted=[...S.advances].sort((a,b)=>b.date?.localeCompare(a.date));
+  document.getElementById('adv-tbody').innerHTML=advsorted.slice(0,50).map(a=>`<tr>
+    <td>${a.date}</td><td>${a.csr}</td>
+    <td><span class="badge ${a.type==='advance'?'bg-red':'bg-green'}">${a.type==='advance'?'অগ্রিম':'পেমেন্ট'}</span></td>
+    <td style="font-weight:700;">${fmtTk(a.amount)}</td>
+    <td>${a.note||'—'}</td>
+    <td><button class="btn btn-danger btn-xs" onclick="delAdv('${a.id}')">✕</button></td>
+  </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--t3);">কোনো লেনদেন নেই</td></tr>';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  STOCK
+// ══════════════════════════════════════════════════════════════════
+function buildStock(){
+  const month=document.getElementById('stk-month')?.value||thisMonth();
+  const recs=S.stocks.filter(r=>r.date?.startsWith(month)).sort((a,b)=>a.date.localeCompare(b.date));
+  const salesByDate={};
+  S.sales.filter(r=>r.date?.startsWith(month)).forEach(r=>{
+    if(!salesByDate[r.date])salesByDate[r.date]={bl:0,kfb:0,kfr:0,dg:0,pg:0};
+    salesByDate[r.date].bl+=(r.black||0);salesByDate[r.date].kfb+=(r.kfb||0);
+    salesByDate[r.date].kfr+=(r.kfr||0);salesByDate[r.date].dg+=(r.dg||0);salesByDate[r.date].pg+=(r.pg||0);
+  });
+  let bal={bl:0,kfb:0,kfr:0,dg:0,pg:0};
+  const pr=S.settings.prices;
+  let totR={bl:0,kfb:0,kfr:0,dg:0,pg:0};
+  document.getElementById('stk-tbody').innerHTML=recs.map((r,i)=>{
+    const s=salesByDate[r.date]||{};
+    bal.bl+=r.blR||0;bal.bl-=s.bl||0;
+    bal.kfb+=r.kfbR||0;bal.kfb-=s.kfb||0;
+    bal.kfr+=r.kfrR||0;bal.kfr-=s.kfr||0;
+    bal.dg+=r.dgR||0;bal.dg-=s.dg||0;
+    bal.pg+=r.pgR||0;bal.pg-=s.pg||0;
+    totR.bl+=(r.blR||0);totR.kfb+=(r.kfbR||0);totR.kfr+=(r.kfrR||0);totR.dg+=(r.dgR||0);totR.pg+=(r.pgR||0);
+    return`<tr>
+      <td>${i+1}</td><td>${r.date}</td>
+      <td>${r.blR||0}</td><td>${s.bl||0}</td><td style="color:${bal.bl<0?'var(--red)':'var(--green)'};">${bal.bl}</td>
+      <td>${r.kfbR||0}</td><td>${s.kfb||0}</td><td style="color:${bal.kfb<0?'var(--red)':'var(--green)'};">${bal.kfb}</td>
+      <td>${r.kfrR||0}</td><td>${s.kfr||0}</td><td style="color:${bal.kfr<0?'var(--red)':'var(--green)'};">${bal.kfr}</td>
+      <td>${r.dgR||0}</td><td>${s.dg||0}</td><td style="color:${bal.dg<0?'var(--red)':'var(--green)'};">${bal.dg}</td>
+      <td>${r.pgR||0}</td><td>${s.pg||0}</td><td style="color:${bal.pg<0?'var(--red)':'var(--green)'};">${bal.pg}</td>
+      <td><button class="btn btn-danger btn-xs" onclick="S.stocks=S.stocks.filter(x=>x.id!=='${r.id}');save();buildStock();">✕</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="18" style="text-align:center;padding:20px;color:var(--t3);">কোনো ডেটা নেই</td></tr>';
+  document.getElementById('stk-kpi').innerHTML=`
+    <div class="kpi"><div class="kpi-label">BL রিসিভ</div><div class="kpi-val c-black">${fmtN(totR.bl)}</div></div>
+    <div class="kpi blue"><div class="kpi-label">KFB রিসিভ</div><div class="kpi-val">${fmtN(totR.kfb)}</div></div>
+    <div class="kpi"><div class="kpi-label">KFR রিসিভ</div><div class="kpi-val c-kfr">${fmtN(totR.kfr)}</div></div>
+    <div class="kpi purple"><div class="kpi-label">DG রিসিভ</div><div class="kpi-val">${fmtN(totR.dg)}</div></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════════════════════════
+function buildSettings(){
+  const s=S.settings;
+  document.getElementById('set-csr-list').innerHTML=s.csrs.map((c,i)=>`
+    <span class="badge bg-gold">${c} <span onclick="S.settings.csrs.splice(${i},1);save();buildSettings();" style="cursor:pointer;opacity:.5;margin-left:3px;">✕</span></span>`).join('');
+  document.getElementById('set-route-list').innerHTML=s.routes.map((r,i)=>`
+    <span class="badge bg-gold">${r} <span onclick="S.settings.routes.splice(${i},1);save();buildSettings();" style="cursor:pointer;opacity:.5;margin-left:3px;">✕</span></span>`).join('');
+  const p=s.prices;const r=s.rates;const t=s.targets;
+  document.getElementById('pr-black').value=p.black;document.getElementById('pr-kfb').value=p.kfb;
+  document.getElementById('pr-kfr').value=p.kfr;document.getElementById('pr-dg').value=p.dg;document.getElementById('pr-pg').value=p.pg;
+  document.getElementById('ir-black').value=r.black;document.getElementById('ir-kfb').value=r.kfb;
+  document.getElementById('ir-kfr').value=r.kfr;document.getElementById('ir-dg').value=r.dg;document.getElementById('ir-pg').value=r.pg;
+  document.getElementById('tgt-sales').value=t.sales;document.getElementById('tgt-kfb').value=t.kfb;
+  document.getElementById('tgt-dg').value=t.dg;
+  document.getElementById('set-dist-name').value=s.distName||'';document.getElementById('set-territory').value=s.territory||'';
+}
+function addCSR(){const v=document.getElementById('new-csr').value.trim();if(!v)return;if(!S.settings.csrs.includes(v))S.settings.csrs.push(v);save();buildSettings();document.getElementById('new-csr').value='';}
+function addRoute(){const v=document.getElementById('new-route').value.trim();if(!v)return;if(!S.settings.routes.includes(v))S.settings.routes.push(v);save();buildSettings();document.getElementById('new-route').value='';}
+function savePrices(){S.settings.prices={black:+document.getElementById('pr-black').value,kfb:+document.getElementById('pr-kfb').value,kfr:+document.getElementById('pr-kfr').value,dg:+document.getElementById('pr-dg').value,pg:+document.getElementById('pr-pg').value};save();toast('মূল্য আপডেট ✅');}
+function saveRates(){S.settings.rates={black:+document.getElementById('ir-black').value,kfb:+document.getElementById('ir-kfb').value,kfr:+document.getElementById('ir-kfr').value,dg:+document.getElementById('ir-dg').value,pg:+document.getElementById('ir-pg').value};save();toast('রেট আপডেট ✅');}
+function saveGeneralSettings(){S.settings.distName=document.getElementById('set-dist-name').value;S.settings.territory=document.getElementById('set-territory').value;S.settings.targets={sales:+document.getElementById('tgt-sales').value,kfb:+document.getElementById('tgt-kfb').value,dg:+document.getElementById('tgt-dg').value};save();toast('সেটিংস সেভ ✅');}
+function clearAllData(){if(!confirm('সব ডেটা মুছবেন? পূর্বাবস্থায় ফেরানো যাবে না!'))return;S.sales=[];S.expenses=[];S.employees=[];S.advances=[];S.packets=[];S.freeSamples=[];S.damages=[];S.cashbacks=[];S.stocks=[];save();toast('সব ডেটা মুছা হয়েছে');buildDash();}
+
+// ══════════════════════════════════════════════════════════════════
+//  JSON BACKUP / RESTORE
+// ══════════════════════════════════════════════════════════════════
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='Virgo_Backup_'+today()+'.json';a.click();toast('Backup ডাউনলোড ✅');
+}
+function importJSON(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{try{const d=JSON.parse(ev.target.result);
+    if(d.sales||d.settings){Object.assign(S,d);save();buildDash();toast('ডেটা Restore হয়েছে ✅');}
+    else{toast('ভুল ফাইল ফরম্যাট',true);}
+  }catch(err){toast('ফাইল পড়তে সমস্যা',true);}};
+  reader.readAsText(file);e.target.value='';
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  EXCEL EXPORTS
+// ══════════════════════════════════════════════════════════════════
+function buildWB(sheets){
+  const wb=XLSX.utils.book_new();
+  sheets.forEach(({name,data})=>{const ws=XLSX.utils.json_to_sheet(data);XLSX.utils.book_append_sheet(wb,ws,name);});
+  return wb;
+}
+function exportSalesExcel(){
+  const month=document.getElementById('sales-month')?.value||thisMonth();
+  const rows=S.sales.filter(r=>r.date?.startsWith(month));
+  const wb=buildWB([
+    {name:'বিক্রয় (বিস্তারিত)',data:rows.map(r=>({'তারিখ':r.date,'CSR':r.csr,'রুট':r.route,'Black':r.black||0,'KFB':r.kfb||0,'KFR':r.kfr||0,'D.Gold':r.dg||0,'PG':r.pg||0,'Return':r.ret||0,'FS':((r.fsKfb||0)+(r.fsKfr||0)+(r.fsDg||0)+(r.fsPg||0)),'Damage':r.dam||0,'মোট (৳)':r.total||0,'ইনসেন্টিভ (৳)':r.inc||0}))},
+  ]);
+  XLSX.writeFile(wb,'Virgo_Sales_'+month+'.xlsx');toast('Excel ডাউনলোড ✅');
+}
+function exportCSRReport(){
+  const month=document.getElementById('csr-month')?.value||thisMonth();
+  const rows=S.sales.filter(r=>r.date?.startsWith(month));
+  const byC={};rows.forEach(r=>{if(!byC[r.csr])byC[r.csr]={csr:r.csr,black:0,kfb:0,kfr:0,dg:0,pg:0,total:0,inc:0};
+    byC[r.csr].black+=(r.black||0);byC[r.csr].kfb+=(r.kfb||0);byC[r.csr].kfr+=(r.kfr||0);
+    byC[r.csr].dg+=(r.dg||0);byC[r.csr].pg+=(r.pg||0);byC[r.csr].total+=(r.total||0);byC[r.csr].inc+=(r.inc||0);});
+  const wb=buildWB([{name:'CSR Report',data:Object.values(byC)}]);
+  XLSX.writeFile(wb,'Virgo_CSR_'+month+'.xlsx');toast('Excel ✅');
+}
+function exportExpExcel(){
+  const month=document.getElementById('exp-month')?.value||thisMonth();
+  const rows=S.expenses.filter(e=>e.date?.startsWith(month));
+  const wb=buildWB([{name:'খরচ',data:rows.map(e=>({'তারিখ':e.date,'ধরন':e.type,'বিবরণ':e.desc,'পরিমাণ (৳)':e.amount}))}]);
+  XLSX.writeFile(wb,'Virgo_Expense_'+month+'.xlsx');toast('Excel ✅');
+}
+function exportIncExcel(){
+  const month=document.getElementById('inc-month')?.value||thisMonth();
+  const rows=S.sales.filter(r=>r.date?.startsWith(month));
+  const pr=S.settings.prices;const rt=S.settings.rates;
+  const wb=buildWB([{name:'ইনসেন্টিভ',data:rows.map(r=>({'তারিখ':r.date,'CSR':r.csr,'Black':r.black||0,'KFB':r.kfb||0,'KFR':r.kfr||0,'DG':r.dg||0,'PG':r.pg||0,'ইনসেন্টিভ (৳)':r.inc||0}))}]);
+  XLSX.writeFile(wb,'Virgo_Inc_'+month+'.xlsx');toast('Excel ✅');
+}
+function exportSalaryExcel(){
+  const month=document.getElementById('sal-month')?.value||thisMonth();
+  const incByCSR={};S.sales.filter(r=>r.date?.startsWith(month)).forEach(r=>{incByCSR[r.csr]=(incByCSR[r.csr]||0)+(r.inc||0);});
+  const advByCSR={};S.advances.filter(a=>a.date?.startsWith(month)&&a.type==='advance').forEach(a=>{advByCSR[a.csr]=(advByCSR[a.csr]||0)+(a.amount||0);});
+  const wb=buildWB([{name:'বেতন শিট',data:S.employees.map((e,i)=>{const inc=incByCSR[e.name]||0;const adv=advByCSR[e.name]||e.adv||0;const gross=e.gross||0;const attn=e.attn||1000;const conv=e.conv||0;const payable=gross+attn+conv+inc;return{'SL':i+1,'নাম':e.name,'পদবি':e.desig,'গ্রস বেতন':gross,'উপস্থিতি বোনাস':attn,'যাতায়াত ভাতা':conv,'বিক্রয় ইনসেন্টিভ':inc,'মোট প্রদেয়':payable,'অগ্রিম কাটা':adv,'নেট প্রদেয়':payable-adv};})}]);
+  XLSX.writeFile(wb,'Virgo_Salary_'+month+'.xlsx');toast('Excel ✅');
+}
+function exportFSExcel(){const month=document.getElementById('fs-month')?.value||thisMonth();const rows=S.freeSamples.filter(r=>r.date?.startsWith(month));const wb=buildWB([{name:'FS',data:rows}]);XLSX.writeFile(wb,'Virgo_FS_'+month+'.xlsx');toast('Excel ✅');}
+function exportDamExcel(){const month=document.getElementById('dam-month')?.value||thisMonth();const rows=S.damages.filter(r=>r.date?.startsWith(month));const wb=buildWB([{name:'Damage',data:rows}]);XLSX.writeFile(wb,'Virgo_Damage_'+month+'.xlsx');toast('Excel ✅');}
+function exportAdvExcel(){const wb=buildWB([{name:'অগ্রিম',data:S.advances}]);XLSX.writeFile(wb,'Virgo_Advance.xlsx');toast('Excel ✅');}
+function exportStkExcel(){const month=document.getElementById('stk-month')?.value||thisMonth();const rows=S.stocks.filter(r=>r.date?.startsWith(month));const wb=buildWB([{name:'স্টক',data:rows}]);XLSX.writeFile(wb,'Virgo_Stock_'+month+'.xlsx');toast('Excel ✅');}
+function downloadSalesReport(){const m=document.getElementById('dl-sales')?.value||thisMonth();document.getElementById('sales-month').value=m;nav('sales');exportSalesExcel();}
+function downloadSalaryReport(){const m=document.getElementById('dl-sal')?.value||thisMonth();document.getElementById('sal-month').value=m;nav('salary');exportSalaryExcel();}
+function downloadIncReport(){const m=document.getElementById('dl-inc')?.value||thisMonth();document.getElementById('inc-month').value=m;nav('incentive');exportIncExcel();}
+function downloadFullReport(){
+  const month=document.getElementById('dl-full')?.value||thisMonth();
+  const pr=S.settings.prices;const rt=S.settings.rates;
+  const incByCSR={};S.sales.filter(r=>r.date?.startsWith(month)).forEach(r=>{incByCSR[r.csr]=(incByCSR[r.csr]||0)+(r.inc||0);});
+  const advByCSR={};S.advances.filter(a=>a.date?.startsWith(month)&&a.type==='advance').forEach(a=>{advByCSR[a.csr]=(advByCSR[a.csr]||0)+(a.amount||0);});
+  const wb=buildWB([
+    {name:'বিক্রয়',data:S.sales.filter(r=>r.date?.startsWith(month)).map(r=>({'তারিখ':r.date,'CSR':r.csr,'রুট':r.route,'Black':r.black||0,'KFB':r.kfb||0,'KFR':r.kfr||0,'D.Gold':r.dg||0,'PG':r.pg||0,'মোট':r.total||0,'ইনসেন্টিভ':r.inc||0}))},
+    {name:'খরচ',data:S.expenses.filter(e=>e.date?.startsWith(month)).map(e=>({'তারিখ':e.date,'ধরন':e.type,'বিবরণ':e.desc,'পরিমাণ':e.amount}))},
+    {name:'বেতন',data:S.employees.map((e,i)=>{const inc=incByCSR[e.name]||0;const adv=advByCSR[e.name]||e.adv||0;const gross=e.gross||0;const payable=gross+(e.attn||1000)+(e.conv||0)+inc;return{'SL':i+1,'নাম':e.name,'পদবি':e.desig,'গ্রস বেতন':gross,'ইনসেন্টিভ':inc,'অগ্রিম':adv,'নেট প্রদেয়':payable-adv};})},
+    {name:'FS',data:S.freeSamples.filter(r=>r.date?.startsWith(month))},
+    {name:'Damage',data:S.damages.filter(r=>r.date?.startsWith(month))},
+    {name:'অগ্রিম',data:S.advances.filter(r=>r.date?.startsWith(month))},
+  ]);
+  XLSX.writeFile(wb,'Virgo_FullReport_'+month+'.xlsx');toast('সম্পূর্ণ রিপোর্ট ডাউনলোড ✅');
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════════
+async function init(){
+  if(!currentUser){showAuth();renderAuthHeader();return;}
+  await load();
+  renderAuthHeader();
+  // set today dates everywhere
+  const tod=today();const mon=thisMonth();
+  ['e-date','view-date','q-date','ex-date','adv-date','pac-date','fs-date','dam-date','stk-date'].forEach(id=>{
+    const el=document.getElementById(id);if(el&&!el.value)el.value=tod;
+  });
+  ['sales-month','csr-month','exp-month','inc-month','sal-month','pac-month','fs-month','dam-month','cb-month','stk-month','mr-month','dl-sales','dl-sal','dl-inc','dl-full'].forEach(id=>{
+    const el=document.getElementById(id);if(el&&!el.value)el.value=mon;
+  });
+  document.getElementById('cb-month2').value=mon;
+
+  // topbar date
+  document.getElementById('tb-date').textContent=new Date().toLocaleDateString('bn-BD',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('tb-sub').textContent=S.settings.distName+' — '+S.settings.territory;
+
+  // auto-day on date change
+  setupDateAutoDay();
+  fillSelects();
+  buildSettings();
+  buildDash();
+  buildDailyView();
+  if(isAdminUser(getCurrentUser())){
+    buildAdminPanel();
+    buildUserManagement();
+  }
+}
+
+function exposeInlineHandlers(){
+  const handlers = {
+    login, register, resetPassword, toggleAuth, logout, approvePendingUsers, rejectUser, deleteUser, approveSingleUser,
+    nav, toggleSidebar, closeSidebar, openOv, closeOv, openQuickEntry, openExpModal, openEmpModal, openAdvModal,
+    openPacModal, openFSModal, openDamModal, openCBModal, openStkModal,
+    saveEntry, clearEntry, addProductToEntry, addReturnToEntry, removeProductFromEntry,
+    removeReturnFromEntry, saveQEntry, saveExpense, saveEmployee, saveAdvance,
+    savePacEntry, saveFSEntry, saveDamEntry, saveCBEntry, saveStkEntry, addNewProduct,
+    addCSR, addRoute, savePrices, saveRates, saveGeneralSettings, clearAllData,
+    exportJSON, exportSalesExcel, exportCSRReport, exportExpExcel, exportIncExcel,
+    exportSalaryExcel, exportAdvExcel, exportStkExcel, exportFSExcel, exportDamExcel,
+    downloadSalesReport, downloadSalaryReport, downloadIncReport, downloadFullReport
+  };
+  Object.assign(window, handlers);
+}
+
+exposeInlineHandlers();
+
+document.addEventListener('DOMContentLoaded', async ()=>{
+  const restoredUser = await restoreSession();
+  if(restoredUser){
+    currentUser = restoredUser;
+    showApp();
+    renderAuthHeader();
+    await init();
+  } else {
+    showAuth();
+    renderAuthHeader();
+  }
+});
+</script>
+</body>
+</html>
